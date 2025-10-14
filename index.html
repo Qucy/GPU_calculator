@@ -133,9 +133,9 @@
                     <h1 class="text-xl font-bold gradient-text">GPU Calculator Pro</h1>
                 </div>
                 <nav class="hidden md:flex items-center space-x-8">
+                    <a href="#gpu" class="text-soft-gray hover:text-electric transition-colors">GPU</a>
+                    <a href="#models" class="text-soft-gray hover:text-electric transition-colors">Open Source Models</a>
                     <a href="#calculator" class="text-soft-gray hover:text-electric transition-colors">Calculator</a>
-                    <a href="#documentation" class="text-soft-gray hover:text-electric transition-colors">Documentation</a>
-                    <a href="#about" class="text-soft-gray hover:text-electric transition-colors">About</a>
                 </nav>
                 <button id="theme-toggle" class="p-2 rounded-lg bg-navy hover:bg-electric transition-colors">
                     <span class="text-soft-gray">🌙</span>
@@ -171,9 +171,85 @@
         </div>
     </section>
 
+    <!-- GPU Page -->
+    <section id="gpu" class="py-16 bg-navy/30">
+        <div class="w-[90%] mx-auto px-6">
+            <div class="text-center mb-12">
+                <h3 class="text-3xl md:text-4xl font-bold mb-4 gradient-text">GPU Explorer</h3>
+                <p class="text-lg text-soft-gray max-w-2xl mx-auto">
+                    Browse current GPUs suitable for LLM workloads. Toggle between cards and table views.
+                </p>
+            </div>
+            <div class="glass-effect rounded-xl p-6 hover-lift">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-xl font-semibold">Current GPUs for LLMs</h4>
+                    <!-- Toggle: Cards ↔ Table -->
+                    <button id="gpu-catalog-view-toggle" aria-label="Toggle GPU catalog view" class="relative w-20 h-8 bg-navy/70 border border-soft-gray/20 rounded-full flex items-center px-1 justify-start hover:bg-navy/80 transition-colors">
+                        <span class="text-[10px] absolute left-2 text-soft-gray/60 select-none">Cards</span>
+                        <span class="text-[10px] absolute right-2 text-soft-gray/60 select-none">Table</span>
+                        <div id="gpu-catalog-view-knob" class="w-8 h-6 bg-electric rounded-full transition-all"></div>
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                    <div class="xl:col-span-8 min-w-0">
+                        <div id="gpu-catalog" class="grid grid-cols-1 gap-3"></div>
+                    </div>
+                    <div class="xl:col-span-4 min-w-0">
+                        <!-- Recommendations triggered by GPU selection -->
+                        <div id="gpu-reco-panel" class="hidden mt-6 xl:mt-0 xl:sticky xl:top-24 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
+                            <div class="flex items-center justify-between mb-3">
+                                <h5 class="text-lg font-semibold">Recommendations for Selected GPU</h5>
+                                <button id="gpu-reco-hide" class="text-xs px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded hover:bg-navy/80">Hide</button>
+                            </div>
+                            <div id="gpu-reco-content" class="grid grid-cols-1 gap-3"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Open Source Models Page -->
+    <section id="models" class="py-16">
+        <div class="w-[90%] mx-auto px-6">
+            <div class="text-center mb-12">
+                <h3 class="text-3xl md:text-4xl font-bold mb-4 gradient-text">Open Source Models</h3>
+                <p class="text-lg text-soft-gray max-w-2xl mx-auto">
+                    Explore popular open models and associated GPU options. Use the toggle to change views.
+                </p>
+            </div>
+            <div class="glass-effect rounded-xl p-6 hover-lift">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-xl font-semibold">Open Source Models Catalog</h4>
+                    <!-- Toggle: Cards ↔ Table -->
+                    <button id="llm-catalog-view-toggle" aria-label="Toggle LLM catalog view" class="relative w-20 h-8 bg-navy/70 border border-soft-gray/20 rounded-full flex items-center px-1 justify-start hover:bg-navy/80 transition-colors">
+                        <span class="text-[10px] absolute left-2 text-soft-gray/60 select-none">Cards</span>
+                        <span class="text-[10px] absolute right-2 text-soft-gray/60 select-none">Table</span>
+                        <div id="llm-catalog-view-knob" class="w-8 h-6 bg-electric rounded-full transition-all"></div>
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                    <div class="xl:col-span-8 min-w-0">
+                        <div id="llm-catalog" class="grid grid-cols-1 gap-3"></div>
+                    </div>
+                    <div class="xl:col-span-4 min-w-0">
+                        <!-- Recommendations triggered by LLM selection -->
+                        <div id="llm-reco-panel" class="hidden mt-6 xl:mt-0 xl:sticky xl:top-24 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
+                            <div class="flex items-center justify-between mb-3">
+                                <h5 class="text-lg font-semibold">Recommendations for Selected Model</h5>
+                                <button id="llm-reco-hide" class="text-xs px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded hover:bg-navy/80">Hide</button>
+                            </div>
+                            <div id="llm-reco-content" class="grid grid-cols-1 gap-3"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Main Calculator Interface -->
     <section id="calculator" class="py-16 relative">
-        <div class="max-w-7xl mx-auto px-6">
+        <div class="w-[90%] mx-auto px-6">
             <div class="text-center mb-12">
                 <h3 class="text-3xl md:text-4xl font-bold mb-4 gradient-text">GPU Requirements Calculator</h3>
                 <p class="text-lg text-soft-gray max-w-2xl mx-auto">
@@ -181,9 +257,9 @@
                 </p>
             </div>
 
-            <div class="grid lg:grid-cols-2 gap-8">
+            <div class="grid lg:grid-cols-3 gap-8">
                 <!-- Input Controls Panel -->
-                <div class="lg:col-span-1">
+                <div class="lg:col-span-2">
                     <div class="grid md:grid-cols-2 gap-6">
                     <!-- Model Selection -->
                     <div class="glass-effect rounded-xl p-6 hover-lift">
