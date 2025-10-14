@@ -1,0 +1,34 @@
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Dependencies and caches (if you add tooling later)
+node_modules/
+.cache/
+coverage/
+dist/
+build/
+out/
+.tmp/
+
+# Environment files
+.env
+.env.*
+*.local
+
+# Editor/IDE settings
+.vscode/
+.idea/
+
+# Misc
+*.swp
+.eslintcache
+.turbo/
+.vercel/
+.netlify/

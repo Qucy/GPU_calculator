@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPU Calculator Pro - Advanced GPU Calculator for AI Workloads</title>
+    <meta name="description" content="Optimize your GPU requirements with precision calculations for AI and ML workloads. Advanced calculator for model selection, quantization, and performance estimation.">
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Core Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/typed.js/2.0.12/typed.min.js"></script>
+    <script src="https://unpkg.com/splitting@1.0.6/dist/splitting.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/splitting@1.0.6/dist/splitting.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'navy': '#1a2332',
+                        'electric': '#00d4ff',
+                        'amber': '#ffb347',
+                        'sage': '#7fb069',
+                        'charcoal': '#2d3748',
+                        'soft-gray': '#e2e8f0',
+                        'deep-charcoal': '#1a202c'
+                    },
+                    fontFamily: {
+                        'mono': ['JetBrains Mono', 'monospace'],
+                        'sans': ['Inter', 'sans-serif']
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                        'glow': 'glow 2s ease-in-out infinite alternate'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        @keyframes glow {
+            from { box-shadow: 0 0 20px rgba(0, 212, 255, 0.3); }
+            to { box-shadow: 0 0 30px rgba(0, 212, 255, 0.6); }
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #00d4ff, #7fb069);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .glass-effect {
+            background: rgba(45, 55, 72, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .hover-lift {
+            transition: all 0.3s ease;
+        }
+        
+        .hover-lift:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .slider-thumb::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00d4ff;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+        
+        .slider-thumb::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00d4ff;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+        
+        #particles-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            opacity: 0.3;
+        }
+        
+        .typing-cursor {
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+    </style>
+</head>
+
+<body class="bg-charcoal text-soft-gray font-sans overflow-x-hidden">
+    <!-- Particle Background -->
+    <div id="particles-canvas"></div>
+    
+    <!-- Navigation Header -->
+    <header class="fixed top-0 left-0 right-0 z-50 glass-effect">
+        <div class="max-w-7xl mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-electric rounded-lg flex items-center justify-center">
+                        <span class="text-navy font-bold text-sm">GPU</span>
+                    </div>
+                    <h1 class="text-xl font-bold gradient-text">GPU Calculator Pro</h1>
+                </div>
+                <nav class="hidden md:flex items-center space-x-8">
+                    <a href="#calculator" class="text-soft-gray hover:text-electric transition-colors">Calculator</a>
+                    <a href="#documentation" class="text-soft-gray hover:text-electric transition-colors">Documentation</a>
+                    <a href="#about" class="text-soft-gray hover:text-electric transition-colors">About</a>
+                </nav>
+                <button id="theme-toggle" class="p-2 rounded-lg bg-navy hover:bg-electric transition-colors">
+                    <span class="text-soft-gray">🌙</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="relative pt-24 pb-16 overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-navy via-charcoal to-deep-charcoal"></div>
+        <div class="absolute inset-0 opacity-20">
+            <img src="resources/hero-datacenter.png" alt="Data Center" class="w-full h-full object-cover">
+        </div>
+        
+        <div class="relative max-w-7xl mx-auto px-6 py-20">
+            <div class="text-center">
+                <h2 class="text-5xl md:text-7xl font-bold mb-6 gradient-text" data-splitting>
+                    Advanced GPU Calculator
+                </h2>
+                <div class="text-xl md:text-2xl mb-8 max-w-3xl mx-auto">
+                    <span id="typed-text"></span>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                    <button onclick="scrollToCalculator()" class="px-8 py-4 bg-electric text-navy font-semibold rounded-lg hover-lift glow">
+                        Start Calculating
+                    </button>
+                    <button onclick="showDocumentation()" class="px-8 py-4 border-2 border-electric text-electric font-semibold rounded-lg hover-lift">
+                        View Documentation
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Calculator Interface -->
+    <section id="calculator" class="py-16 relative">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-12">
+                <h3 class="text-3xl md:text-4xl font-bold mb-4 gradient-text">GPU Requirements Calculator</h3>
+                <p class="text-lg text-soft-gray max-w-2xl mx-auto">
+                    Configure your AI model specifications and get instant GPU recommendations with detailed performance analysis.
+                </p>
+            </div>
+
+            <div class="grid lg:grid-cols-2 gap-8">
+                <!-- Input Controls Panel -->
+                <div class="lg:col-span-1">
+                    <div class="grid md:grid-cols-2 gap-6">
+                    <!-- Model Selection -->
+                    <div class="glass-effect rounded-xl p-6 hover-lift">
+                        <h4 class="text-xl font-semibold mb-4 flex items-center">
+                            <span class="w-6 h-6 bg-electric rounded mr-3 flex items-center justify-center text-navy text-sm font-bold">1</span>
+                            Model Selection
+                        </h4>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">AI Model</label>
+                                <select id="model-select" class="w-full p-3 bg-navy border border-soft-gray/20 rounded-lg focus:border-electric focus:outline-none transition-colors">
+                                    <option value="qwen-ds-7b">DeepSeek Distilled Qwen (7B)</option>
+                                    <option value="qwen-ds-14b">DeepSeek Distilled Qwen (14B)</option>
+                                    <option value="qwen-ds-32b">DeepSeek Distilled Qwen (32B)</option>
+                                    <option value="qwen3-7b">Qwen 3 (7B)</option>
+                                    <option value="qwen3-14b">Qwen 3 (14B)</option>
+                                    <option value="qwen3-32b">Qwen 3 (32B)</option>
+                                    <option value="deepseek-v3">DeepSeek V3 (671B parameters)</option>
+                                    <option value="custom">Custom Model</option>
+                                </select>
+                            </div>
+                            <div id="custom-model-params" class="hidden">
+                                <label class="block text-sm font-medium mb-2">Custom Parameters (Billions)</label>
+                                <input type="number" id="custom-params" class="w-full p-3 bg-navy border border-soft-gray/20 rounded-lg focus:border-electric focus:outline-none transition-colors" placeholder="7.0" step="0.1" min="0.1">
+                            </div>
+                            <div class="text-sm text-soft-gray/70">
+                                Parameters: <span id="param-count" class="font-mono text-electric">7.0B</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quantization -->
+                    <div class="glass-effect rounded-xl p-6 hover-lift">
+                        <h4 class="text-xl font-semibold mb-4 flex items-center">
+                            <span class="w-6 h-6 bg-electric rounded mr-3 flex items-center justify-center text-navy text-sm font-bold">2</span>
+                            Quantization
+                        </h4>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="quantization-option flex items-center p-3 bg-navy rounded-lg cursor-pointer hover:bg-navy/80 transition-colors">
+                                <input type="radio" name="quantization" value="fp32" class="sr-only">
+                                <div class="w-4 h-4 rounded-full border-2 border-soft-gray/50 mr-3 flex items-center justify-center">
+                                    <div class="w-2 h-2 rounded-full bg-electric scale-0 transition-transform"></div>
+                                </div>
+                                <div>
+                                    <div class="font-medium">FP32</div>
+                                    <div class="text-xs text-soft-gray/70">4 bytes</div>
+                                </div>
+                            </label>
+                            <label class="quantization-option flex items-center p-3 bg-navy rounded-lg cursor-pointer hover:bg-navy/80 transition-colors">
+                                <input type="radio" name="quantization" value="fp16" class="sr-only" checked>
+                                <div class="w-4 h-4 rounded-full border-2 border-electric mr-3 flex items-center justify-center">
+                                    <div class="w-2 h-2 rounded-full bg-electric scale-100 transition-transform"></div>
+                                </div>
+                                <div>
+                                    <div class="font-medium">FP16</div>
+                                    <div class="text-xs text-soft-gray/70">2 bytes</div>
+                                </div>
+                            </label>
+                            <label class="quantization-option flex items-center p-3 bg-navy rounded-lg cursor-pointer hover:bg-navy/80 transition-colors">
+                                <input type="radio" name="quantization" value="bf16" class="sr-only">
+                                <div class="w-4 h-4 rounded-full border-2 border-soft-gray/50 mr-3 flex items-center justify-center">
+                                    <div class="w-2 h-2 rounded-full bg-electric scale-0 transition-transform"></div>
+                                </div>
+                                <div>
+                                    <div class="font-medium">BF16</div>
+                                    <div class="text-xs text-soft-gray/70">2 bytes</div>
+                                </div>
+                            </label>
+                            <label class="quantization-option flex items-center p-3 bg-navy rounded-lg cursor-pointer hover:bg-navy/80 transition-colors">
+                                <input type="radio" name="quantization" value="int8" class="sr-only">
+                                <div class="w-4 h-4 rounded-full border-2 border-soft-gray/50 mr-3 flex items-center justify-center">
+                                    <div class="w-2 h-2 rounded-full bg-electric scale-0 transition-transform"></div>
+                                </div>
+                                <div>
+                                    <div class="font-medium">INT8</div>
+                                    <div class="text-xs text-soft-gray/70">1 byte</div>
+                                </div>
+                            </label>
+                            <label class="quantization-option flex items-center p-3 bg-navy rounded-lg cursor-pointer hover:bg-navy/80 transition-colors">
+                                <input type="radio" name="quantization" value="fp8" class="sr-only">
+                                <div class="w-4 h-4 rounded-full border-2 border-soft-gray/50 mr-3 flex items-center justify-center">
+                                    <div class="w-2 h-2 rounded-full bg-electric scale-0 transition-transform"></div>
+                                </div>
+                                <div>
+                                    <div class="font-medium">FP8</div>
+                                    <div class="text-xs text-soft-gray/70">1 byte</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Context Length -->
+                    <div class="glass-effect rounded-xl p-6 hover-lift">
+                        <h4 class="text-xl font-semibold mb-4 flex items-center">
+                            <span class="w-6 h-6 bg-electric rounded mr-3 flex items-center justify-center text-navy text-sm font-bold">3</span>
+                            Context Length
+                        </h4>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Max Context (tokens)</label>
+                                <input type="range" id="context-slider" min="512" max="128000" value="4096" step="512" class="w-full h-2 bg-navy rounded-lg appearance-none cursor-pointer slider-thumb">
+                            </div>
+                            <div class="flex justify-between text-sm text-soft-gray/70">
+                                <span>512</span>
+                                <span id="context-value" class="font-mono text-electric">4,096</span>
+                                <span>128K</span>
+                            </div>
+                            <div class="flex flex-wrap gap-2 mt-2">
+                                <button class="context-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-context="2048">2K</button>
+                                <button class="context-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-context="4096">4K</button>
+                                <button class="context-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-context="8192">8K</button>
+                                <button class="context-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-context="32000">32K</button>
+                                <button class="context-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-context="128000">128K</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Concurrency & Batch Size -->
+                    <div class="glass-effect rounded-xl p-6 hover-lift">
+                        <h4 class="text-xl font-semibold mb-4 flex items-center">
+                            <span class="w-6 h-6 bg-electric rounded mr-3 flex items-center justify-center text-navy text-sm font-bold">4</span>
+                            Performance Settings
+                        </h4>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Concurrency Level</label>
+                                <div class="flex items-center space-x-3">
+                                    <button id="concurrency-dec" class="w-8 h-8 bg-navy rounded flex items-center justify-center hover:bg-electric transition-colors">-</button>
+                                    <input type="number" id="concurrency-input" value="1" min="1" max="1000" class="flex-1 p-2 bg-navy border border-soft-gray/20 rounded text-center focus:border-electric focus:outline-none transition-colors">
+                                    <button id="concurrency-inc" class="w-8 h-8 bg-navy rounded flex items-center justify-center hover:bg-electric transition-colors">+</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Batch Size</label>
+                                <input type="range" id="batch-slider" min="1" max="256" value="1" class="w-full h-2 bg-navy rounded-lg appearance-none cursor-pointer slider-thumb">
+                                <div class="flex justify-between text-sm text-soft-gray/70 mt-2">
+                                    <span>1</span>
+                                    <span id="batch-value" class="font-mono text-electric">1</span>
+                                    <span>256</span>
+                                </div>
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <button class="batch-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-batch="1">1</button>
+                                    <button class="batch-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-batch="4">4</button>
+                                    <button class="batch-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-batch="8">8</button>
+                                    <button class="batch-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-batch="16">16</button>
+                                    <button class="batch-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-batch="32">32</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+                </div>
+
+                <!-- Results Panel -->
+                <div class="lg:col-span-1 space-y-6">
+                    <!-- Memory Breakdown -->
+                    <div class="glass-effect rounded-xl p-6 hover-lift">
+                        <h4 class="text-xl font-semibold mb-4">Memory Requirements</h4>
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <div>
+                                <div id="memory-chart" class="w-full h-64"></div>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="flex justify-between items-center p-3 bg-navy/50 rounded-lg">
+                                    <span class="flex items-center">
+                                        <span class="w-3 h-3 bg-electric rounded-full mr-2"></span>
+                                        Model Weights
+                                    </span>
+                                    <span id="weights-memory" class="font-mono text-electric">13.0 GB</span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-navy/50 rounded-lg">
+                                    <span class="flex items-center">
+                                        <span class="w-3 h-3 bg-amber rounded-full mr-2"></span>
+                                        KV Cache
+                                    </span>
+                                    <span id="cache-memory" class="font-mono text-amber">2.0 GB</span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-navy/50 rounded-lg">
+                                    <span class="flex items-center">
+                                        <span class="w-3 h-3 bg-sage rounded-full mr-2"></span>
+                                        Activation
+                                    </span>
+                                    <span id="activation-memory" class="font-mono text-sage">0.5 GB</span>
+                                </div>
+                                <div class="flex justify-between items-center p-3 bg-navy/50 rounded-lg">
+                                    <span class="flex items-center">
+                                        <span class="w-3 h-3 bg-soft-gray rounded-full mr-2"></span>
+                                        Overhead
+                                    </span>
+                                    <span id="overhead-memory" class="font-mono text-soft-gray">4.9 GB</span>
+                                </div>
+                                <div class="border-t border-soft-gray/20 pt-4 mt-4">
+                                    <div class="flex justify-between items-center text-lg font-semibold">
+                                        <span>Total Memory</span>
+                                        <span id="total-memory" class="font-mono text-electric">20.4 GB</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Metrics -->
+                    <div class="glass-effect rounded-xl p-6 hover-lift">
+                        <h4 class="text-xl font-semibold mb-4">Performance Estimates</h4>
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <div class="text-center p-4 bg-navy/50 rounded-lg">
+                                <div class="text-2xl font-bold text-electric mb-2" id="inference-speed">42</div>
+                                <div class="text-sm text-soft-gray/70">Tokens/Second</div>
+                            </div>
+                            <div class="text-center p-4 bg-navy/50 rounded-lg">
+                                <div class="text-2xl font-bold text-amber mb-2" id="memory-bandwidth">68</div>
+                                <div class="text-sm text-soft-gray/70">Bandwidth Utilization (%)</div>
+                            </div>
+                            <div class="text-center p-4 bg-navy/50 rounded-lg">
+                                <div class="text-2xl font-bold text-sage mb-2" id="effective-speed">42</div>
+                                <div class="text-sm text-soft-gray/70">Speed per Request</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    
+                </div>
+            </div>
+        </div>
+        <!-- Recommended GPUs (90% page width, outside container) -->
+        <div class="w-[90%] mx-auto px-6">
+            <div class="glass-effect rounded-xl p-6 hover-lift mt-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-xl font-semibold">Recommended GPUs</h4>
+                    <!-- Sliding toggle: Cards ↔ Table -->
+                    <button id="gpu-view-toggle" aria-label="Toggle recommendations view" class="relative w-20 h-8 bg-navy/70 border border-soft-gray/20 rounded-full flex items-center px-1 justify-start hover:bg-navy/80 transition-colors">
+                        <span class="text-[10px] absolute left-2 text-soft-gray/60 select-none">Cards</span>
+                        <span class="text-[10px] absolute right-2 text-soft-gray/60 select-none">Table</span>
+                        <div id="gpu-view-knob" class="w-8 h-6 bg-electric rounded-full transition-all"></div>
+                    </button>
+                </div>
+                <div id="gpu-recommendations" class="grid grid-cols-1 gap-3">
+                    <!-- GPU recommendations will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Technical Details Section -->
+    <section id="documentation" class="py-16 bg-navy/30">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center mb-12">
+                <h3 class="text-3xl md:text-4xl font-bold mb-4 gradient-text">Technical Documentation</h3>
+                <p class="text-lg text-soft-gray max-w-2xl mx-auto">
+                    Understanding the calculations and methodologies behind GPU requirements estimation.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Memory Calculation Formula -->
+                <div class="glass-effect rounded-xl p-6 hover-lift">
+                    <h4 class="text-xl font-semibold mb-4 text-electric">Memory Calculations</h4>
+                    <div class="space-y-4 text-sm">
+                        <div class="p-4 bg-navy/50 rounded-lg font-mono text-xs">
+                            <div class="text-amber mb-2">Model Weights Memory:</div>
+                            <div>Parameters × Bytes_per_Parameter</div>
+                        </div>
+                        <div class="p-4 bg-navy/50 rounded-lg font-mono text-xs">
+                            <div class="text-amber mb-2">KV Cache Memory:</div>
+                            <div>2 × Layers × Hidden_Dim × Context</div>
+                        </div>
+                        <div class="p-4 bg-navy/50 rounded-lg font-mono text-xs">
+                            <div class="text-amber mb-2">Total Memory:</div>
+                            <div>(Weights + Cache + Activation) × 1.3</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Metrics -->
+                <div class="glass-effect rounded-xl p-6 hover-lift">
+                    <h4 class="text-xl font-semibold mb-4 text-electric">Performance Metrics</h4>
+                    <div class="space-y-4 text-sm">
+                        <div class="p-4 bg-navy/50 rounded-lg">
+                            <div class="font-semibold text-amber mb-2">Inference Speed</div>
+                            <div class="text-soft-gray/70">Based on GPU memory bandwidth and model size</div>
+                        </div>
+                        <div class="p-4 bg-navy/50 rounded-lg">
+                            <div class="font-semibold text-amber mb-2">Memory Bandwidth</div>
+                            <div class="text-soft-gray/70">Utilization percentage of available bandwidth</div>
+                        </div>
+                        <div class="p-4 bg-navy/50 rounded-lg">
+                            <div class="font-semibold text-amber mb-2">Concurrency Impact</div>
+                            <div class="text-soft-gray/70">Speed per request with concurrent operations</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GPU Specifications -->
+                <div class="glass-effect rounded-xl p-6 hover-lift">
+                    <h4 class="text-xl font-semibold mb-4 text-electric">GPU Database</h4>
+                    <div class="space-y-3 text-sm">
+                        <div class="flex justify-between">
+                            <span>H200</span>
+                            <span class="text-soft-gray/70">141GB, 4,800 GB/s</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>H100</span>
+                            <span class="text-soft-gray/70">80GB, 3,350 GB/s</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>H20</span>
+                            <span class="text-soft-gray/70">96GB, 2,000 GB/s</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>A100</span>
+                            <span class="text-soft-gray/70">80GB, 2,039 GB/s</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>L40</span>
+                            <span class="text-soft-gray/70">48GB, 846 GB/s</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-12 bg-deep-charcoal">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="text-center">
+                <div class="flex items-center justify-center space-x-3 mb-4">
+                    <div class="w-8 h-8 bg-electric rounded-lg flex items-center justify-center">
+                        <span class="text-navy font-bold text-sm">GPU</span>
+                    </div>
+                    <h4 class="text-xl font-bold gradient-text">GPU Calculator Pro</h4>
+                </div>
+                <p class="text-soft-gray/70 mb-6">
+                    Advanced GPU requirements calculator for AI and ML workloads.
+                    <br>
+                    Built with precision calculations and professional-grade accuracy.
+                </p>
+                <div class="border-t border-soft-gray/20 pt-6">
+                    <p class="text-sm text-soft-gray/50">
+                        © 2024 GPU Calculator Pro. Built for developers, by developers.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="main.js"></script>
+</body>
+</html>
