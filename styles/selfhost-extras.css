@@ -1,0 +1,125 @@
+/* Lightweight styles for share + explanation dialogs and links */
+
+.share-button {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1000;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 212, 255, 0.4);
+  background: linear-gradient(135deg, rgba(0,212,255,0.15), rgba(0,212,255,0.05));
+  color: #00d4ff;
+  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(0, 212, 255, 0.15);
+  backdrop-filter: blur(6px);
+}
+
+.share-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(0, 212, 255, 0.25);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 990;
+  display: none;
+}
+.overlay.open {
+  display: block;
+}
+
+.share-dialog,
+.explanation-dialog,
+.performance-explanation-dialog {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  width: min(720px, 92vw);
+  max-height: 80vh;
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 212, 255, 0.35);
+  background: linear-gradient(180deg, rgba(22,22,28,0.95), rgba(18,18,24,0.95));
+  box-shadow: 0 20px 50px rgba(0,0,0,0.45), inset 0 0 24px rgba(0,212,255,0.08);
+  display: none;
+}
+.share-dialog.open,
+.explanation-dialog.open,
+.performance-explanation-dialog.open {
+  display: block;
+}
+
+.share-dialog h3,
+.explanation-dialog h3,
+.performance-explanation-dialog h3 {
+  color: #e5faff;
+}
+
+.share-dialog .primary,
+.performance-explanation-dialog .primary,
+.explanation-dialog .primary {
+  background: linear-gradient(135deg, #00d4ff, #00a6c8);
+  color: #0b0f14;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 700;
+}
+.share-dialog .primary:hover,
+.performance-explanation-dialog .primary:hover,
+.explanation-dialog .primary:hover {
+  filter: brightness(1.05);
+}
+
+.share-dialog .secondary,
+.performance-explanation-dialog .secondary,
+.explanation-dialog .secondary {
+  background: rgba(255,255,255,0.06);
+  color: #bcd7de;
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+.share-url-container {
+  background: rgba(0, 212, 255, 0.06);
+  border: 1px dashed rgba(0, 212, 255, 0.35);
+  border-radius: 12px;
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  color: #a8ebff;
+}
+
+.share-dialog-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.how-calculated-link {
+  color: #7bd8ea;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.how-calculated-link:hover {
+  color: #a8ebff;
+}
+
+.formula-box {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+@media (max-width: 480px) {
+  .share-button { right: 14px; bottom: 14px; }
+  .share-dialog,
+  .explanation-dialog,
+  .performance-explanation-dialog { width: 94vw; }
+}

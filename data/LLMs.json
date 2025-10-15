@@ -9,18 +9,33 @@
     "hidden_size": null,
     "num_attention_heads": null,
     "vocab_size": null,
-    "precision_supported": ["BF16", "FP8"],
+    "precision_supported": [
+      "BF16",
+      "FP8"
+    ],
     "context_length": 8192,
     "quantization_available": true,
-    "quantization_types": ["FP8", "INT8", "4-bit"],
+    "quantization_types": [
+      "FP8",
+      "INT8",
+      "4-bit"
+    ],
     "moe": {
       "enabled": false,
       "num_experts": null,
       "active_experts": null,
       "expert_parallelism": null
     },
-    "serving_frameworks": ["TensorRT-LLM", "vLLM", "llama.cpp"],
-    "recommended_gpu": ["NVIDIA A100", "NVIDIA H100", "NVIDIA H200"],
+    "serving_frameworks": [
+      "TensorRT-LLM",
+      "vLLM",
+      "llama.cpp"
+    ],
+    "recommended_gpu": [
+      "NVIDIA A100",
+      "NVIDIA H100",
+      "NVIDIA H200"
+    ],
     "throughput_tokens_per_sec_per_gpu": 700,
     "batch_size_tested": null,
     "sequence_length_tested": 8192,
@@ -38,28 +53,53 @@
     "organization": "Alibaba Cloud / Qwen team",
     "architecture_type": "MoE",
     "parameter_count_billion": 235,
-    "num_layers": null,
-    "hidden_size": null,
-    "num_attention_heads": null,
-    "vocab_size": null,
-    "precision_supported": ["BF16", "FP8"],
+    "num_layers": 80,
+    "hidden_size": 8192,
+    "num_attention_heads": 64,
+    "vocab_size": 152000,
+    "precision_supported": [
+      "BF16",
+      "FP8"
+    ],
     "context_length": 256000,
     "quantization_available": true,
-    "quantization_types": ["1-bit", "2-bit", "3-bit", "4-bit", "5-bit", "6-bit", "7-bit", "8-bit"],
+    "quantization_types": [
+      "1-bit",
+      "2-bit",
+      "3-bit",
+      "4-bit",
+      "5-bit",
+      "6-bit",
+      "7-bit",
+      "8-bit"
+    ],
     "moe": {
       "enabled": true,
       "num_experts": 128,
-      "active_experts": 8,
+      "active_experts": 22,
       "expert_parallelism": true
     },
-    "serving_frameworks": ["vLLM", "TensorRT-LLM", "SGLang", "Ollama", "llama.cpp"],
-    "recommended_gpu": ["A100", "H100", "H200"],
+    "serving_frameworks": [
+      "vLLM",
+      "TensorRT-LLM",
+      "SGLang",
+      "Ollama",
+      "llama.cpp"
+    ],
+    "recommended_gpu": [
+      "A100",
+      "H100",
+      "H200"
+    ],
     "throughput_tokens_per_sec_per_gpu": null,
     "batch_size_tested": null,
     "sequence_length_tested": 32768,
     "memory_footprint_gb": null,
     "license": "Apache 2.0",
-    "source_links": ["qwen.ai", "huggingface.co"],
+    "source_links": [
+      "qwen.ai",
+      "huggingface.co"
+    ],
     "notes": "Dual-mode reasoning, advanced multilingualism"
   },
   {
@@ -68,28 +108,40 @@
     "organization": "Zhipu AI / THUDM",
     "architecture_type": "MoE",
     "parameter_count_billion": 355,
-    "num_layers": null,
-    "hidden_size": "CONFLICT",
-    "num_attention_heads": "CONFLICT",
-    "vocab_size": null,
-    "precision_supported": ["BF16", "FP8"],
+    "num_layers": 92,
+    "hidden_size": 5120,
+    "num_attention_heads": 96,
+    "vocab_size": 150000,
+    "precision_supported": [
+      "BF16",
+      "FP8"
+    ],
     "context_length": 128000,
     "quantization_available": false,
     "quantization_types": [],
     "moe": {
       "enabled": true,
-      "num_experts": "CONFLICT",
+      "num_experts": 160,
       "active_experts": 32,
       "expert_parallelism": null
     },
-    "serving_frameworks": ["Transformers", "vLLM", "SGLang"],
-    "recommended_gpu": ["8x H100"],
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM",
+      "SGLang"
+    ],
+    "recommended_gpu": [
+      "8x H100"
+    ],
     "throughput_tokens_per_sec_per_gpu": null,
     "batch_size_tested": null,
     "sequence_length_tested": 128000,
     "memory_footprint_gb": null,
     "license": "MIT open-source license",
-    "source_links": ["huggingface.co", "arxiv.org"],
+    "source_links": [
+      "huggingface.co",
+      "arxiv.org"
+    ],
     "notes": "Dual-mode, excels in coding and agentic tasks"
   },
   {
@@ -99,27 +151,43 @@
     "architecture_type": "MoE",
     "parameter_count_billion": 671,
     "num_layers": 64,
-    "hidden_size": 4096,
-    "num_attention_heads": 64,
+    "hidden_size": 7168,
+    "num_attention_heads": 128,
     "vocab_size": 300000,
-    "precision_supported": ["FP16", "BF16", "FP8"],
+    "precision_supported": [
+      "FP16",
+      "BF16",
+      "FP8"
+    ],
     "context_length": 128000,
     "quantization_available": true,
-    "quantization_types": ["8-bit"],
+    "quantization_types": [
+      "8-bit"
+    ],
     "moe": {
       "enabled": true,
       "num_experts": 256,
-      "active_experts": 8,
+      "active_experts": 37,
       "expert_parallelism": "tensor parallel"
     },
-    "serving_frameworks": ["SGLang", "vLLM", "Transformers"],
-    "recommended_gpu": ["H100", "H200", "MI300X"],
+    "serving_frameworks": [
+      "SGLang",
+      "vLLM",
+      "Transformers"
+    ],
+    "recommended_gpu": [
+      "H100",
+      "H200",
+      "MI300X"
+    ],
     "throughput_tokens_per_sec_per_gpu": null,
     "batch_size_tested": null,
     "sequence_length_tested": 128000,
     "memory_footprint_gb": 260,
     "license": "MIT",
-    "source_links": ["huggingface.co/deepseek-ai/DeepSeek-V3.2-Exp"],
+    "source_links": [
+      "huggingface.co/deepseek-ai/DeepSeek-V3.2-Exp"
+    ],
     "notes": "Superior mathematical and logical reasoning"
   },
   {
@@ -130,20 +198,36 @@
     "parameter_count_billion": 1000,
     "num_layers": 61,
     "hidden_size": 7168,
-    "num_attention_heads": 64,
+    "num_attention_heads": 128,
     "vocab_size": 160000,
-    "precision_supported": ["FP16", "BF16", "FP8"],
+    "precision_supported": [
+      "FP16",
+      "BF16",
+      "FP8"
+    ],
     "context_length": 65536,
     "quantization_available": true,
-    "quantization_types": ["4-bit", "8-bit"],
+    "quantization_types": [
+      "4-bit",
+      "8-bit"
+    ],
     "moe": {
       "enabled": true,
       "num_experts": 384,
-      "active_experts": 8,
+      "active_experts": 32,
       "expert_parallelism": null
     },
-    "serving_frameworks": ["vLLM", "SGLang", "KTransformers", "TensorRT-LLM"],
-    "recommended_gpu": ["A100", "H100", "Mi300X"],
+    "serving_frameworks": [
+      "vLLM",
+      "SGLang",
+      "KTransformers",
+      "TensorRT-LLM"
+    ],
+    "recommended_gpu": [
+      "A100",
+      "H100",
+      "Mi300X"
+    ],
     "throughput_tokens_per_sec_per_gpu": null,
     "batch_size_tested": null,
     "sequence_length_tested": 65536,
@@ -154,5 +238,563 @@
       "https://www.scmp.com/tech/tech-news/article/3268644/chinese-ai-firm-moonshot-ai-beefed-up-sparsely-gated-llm"
     ],
     "notes": "Trillion-parameter scale, agentic intelligence"
+  },
+  {
+    "model_name": "GPT-OSS 120B",
+    "release_date": "2025-08",
+    "organization": "OpenAI",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 117,
+    "num_layers": 36,
+    "hidden_size": 6144,
+    "num_attention_heads": 64,
+    "vocab_size": 200000,
+    "precision_supported": [
+      "BF16",
+      "MXFP4"
+    ],
+    "context_length": 128000,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit MXFP4"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": 128,
+      "active_experts": 4,
+      "expert_parallelism": "token choice"
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM",
+      "Llama.cpp",
+      "Ollama"
+    ],
+    "recommended_gpu": [
+      "NVIDIA H100",
+      "AMD MI300X"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 128000,
+    "memory_footprint_gb": 80,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/openai/gpt-oss-120b",
+      "https://github.com/openai/gpt-oss"
+    ],
+    "notes": "OpenAI's first open-weight model since GPT-2, designed for reasoning and agentic tasks"
+  },
+  {
+    "model_name": "GPT-OSS 20B",
+    "release_date": "2025-08",
+    "organization": "OpenAI",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 21,
+    "num_layers": 24,
+    "hidden_size": 4096,
+    "num_attention_heads": 32,
+    "vocab_size": 200000,
+    "precision_supported": [
+      "BF16",
+      "MXFP4"
+    ],
+    "context_length": 128000,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit MXFP4"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": 32,
+      "active_experts": 4,
+      "expert_parallelism": "token choice"
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM",
+      "Llama.cpp",
+      "Ollama"
+    ],
+    "recommended_gpu": [
+      "Consumer GPUs"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 128000,
+    "memory_footprint_gb": 16,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/openai/gpt-oss-20b",
+      "https://github.com/openai/gpt-oss"
+    ],
+    "notes": "Laptop-friendly version, runs on 16GB memory, ideal for local deployment"
+  },
+  {
+    "model_name": "Mistral Large 2",
+    "release_date": "2024-07",
+    "organization": "Mistral AI",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 123,
+    "num_layers": 88,
+    "hidden_size": 12288,
+    "num_attention_heads": 96,
+    "vocab_size": 32000,
+    "precision_supported": [
+      "BF16"
+    ],
+    "context_length": 128000,
+    "quantization_available": true,
+    "quantization_types": [
+      "8-bit",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM",
+      "SGLang"
+    ],
+    "recommended_gpu": [
+      "NVIDIA A100",
+      "NVIDIA H100"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 128000,
+    "memory_footprint_gb": null,
+    "license": "Mistral Research License",
+    "source_links": [
+      "https://huggingface.co/mistralai/Mistral-Large-2",
+      "https://mistral.ai/news/magistral"
+    ],
+    "notes": "Multilingual model with strong reasoning capabilities, 128k context window"
+  },
+  {
+    "model_name": "GLM-4.5-Air 106B-A12B",
+    "release_date": "2025-08",
+    "organization": "Zhipu AI / THUDM",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 106,
+    "num_layers": 46,
+    "hidden_size": 4096,
+    "num_attention_heads": 96,
+    "vocab_size": 150000,
+    "precision_supported": [
+      "BF16",
+      "FP8"
+    ],
+    "context_length": 128000,
+    "quantization_available": true,
+    "quantization_types": [
+      "FP8",
+      "INT8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": 128,
+      "active_experts": 12,
+      "expert_parallelism": "sigmoid gates"
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM",
+      "SGLang"
+    ],
+    "recommended_gpu": [
+      "NVIDIA A100",
+      "NVIDIA H100"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 128000,
+    "memory_footprint_gb": null,
+    "license": "MIT",
+    "source_links": [
+      "https://huggingface.co/zai-org/GLM-4.5-Air",
+      "https://github.com/zai-org/GLM-4.5"
+    ],
+    "notes": "Lightweight version of GLM-4.5, optimized for efficiency"
+  },
+  
+  
+  
+  {
+    "model_name": "Qwen3-8B",
+    "release_date": "2025-04",
+    "organization": "Alibaba Cloud / Qwen team",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 8,
+    "num_layers": 36,
+    "hidden_size": 3072,
+    "num_attention_heads": 32,
+    "vocab_size": 151669,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 131072,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM",
+      "llama.cpp",
+      "Ollama"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3070",
+      "AMD RX 6700"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 131072,
+    "memory_footprint_gb": 16,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/Qwen/Qwen3-8B",
+      "https://github.com/QwenLM/Qwen3"
+    ],
+    "notes": "Dense model with 128K context, supports thinking and non-thinking modes"
+  },
+  {
+    "model_name": "Qwen3-14B",
+    "release_date": "2025-04",
+    "organization": "Alibaba Cloud / Qwen team",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 14,
+    "num_layers": 40,
+    "hidden_size": 4096,
+    "num_attention_heads": 40,
+    "vocab_size": 151669,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 131072,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM",
+      "llama.cpp",
+      "Ollama"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3080",
+      "AMD RX 6800"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 131072,
+    "memory_footprint_gb": 28,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/Qwen/Qwen3-14B",
+      "https://github.com/QwenLM/Qwen3"
+    ],
+    "notes": "High-performance dense model with 128K context window"
+  },
+  {
+    "model_name": "Qwen3-32B",
+    "release_date": "2025-04",
+    "organization": "Alibaba Cloud / Qwen team",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 32,
+    "num_layers": 64,
+    "hidden_size": 5120,
+    "num_attention_heads": 64,
+    "vocab_size": 151669,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 131072,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM",
+      "llama.cpp",
+      "Ollama"
+    ],
+    "recommended_gpu": [
+      "NVIDIA A100",
+      "NVIDIA RTX 3090"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 131072,
+    "memory_footprint_gb": 64,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/Qwen/Qwen3-32B",
+      "https://github.com/QwenLM/Qwen3"
+    ],
+    "notes": "Flagship dense model, outperforms Qwen2.5-72B with half the parameters"
+  },
+  
+  {
+    "model_name": "DeepSeek-R1-Distill-Qwen-7B",
+    "release_date": "2025-01",
+    "organization": "DeepSeek",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 7,
+    "num_layers": 28,
+    "hidden_size": 3584,
+    "num_attention_heads": 28,
+    "vocab_size": 151643,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 32768,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit Q4_K_M",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Ollama",
+      "llama.cpp",
+      "Transformers"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3060",
+      "AMD RX 6600"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 32768,
+    "memory_footprint_gb": 5,
+    "license": "MIT",
+    "source_links": [
+      "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+      "https://ollama.com/library/deepseek-r1"
+    ],
+    "notes": "Distilled model, achieves 55.5% on AIME 2024, outperforms QwQ-32B"
+  },
+  {
+    "model_name": "DeepSeek-R1-Distill-Llama-8B",
+    "release_date": "2025-01",
+    "organization": "DeepSeek",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 8,
+    "num_layers": 32,
+    "hidden_size": 4096,
+    "num_attention_heads": 32,
+    "vocab_size": 128256,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 8192,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit Q4_K_M",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Ollama",
+      "llama.cpp",
+      "Transformers"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3060 Ti",
+      "AMD RX 6700"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 8192,
+    "memory_footprint_gb": 6,
+    "license": "Llama 3.1 Community License",
+    "source_links": [
+      "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+      "https://ollama.com/library/deepseek-r1"
+    ],
+    "notes": "Distilled from DeepSeek-R1 using Llama-3.1-8B base, good balance"
+  },
+  {
+    "model_name": "DeepSeek-R1-Distill-Qwen-14B",
+    "release_date": "2025-01",
+    "organization": "DeepSeek",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 14,
+    "num_layers": 40,
+    "hidden_size": 4608,
+    "num_attention_heads": 40,
+    "vocab_size": 151643,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 32768,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit Q4_K_M",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Ollama",
+      "llama.cpp",
+      "Transformers"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3080",
+      "AMD RX 6800"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 32768,
+    "memory_footprint_gb": 10,
+    "license": "MIT",
+    "source_links": [
+      "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+      "https://ollama.com/library/deepseek-r1"
+    ],
+    "notes": "Distilled model, 93.9% on MATH-500, strong mathematical reasoning"
+  },
+  {
+    "model_name": "DeepSeek-R1-Distill-Qwen-32B",
+    "release_date": "2025-01",
+    "organization": "DeepSeek",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 32,
+    "num_layers": 64,
+    "hidden_size": 5120,
+    "num_attention_heads": 64,
+    "vocab_size": 151643,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 32768,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit Q4_K_M",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Ollama",
+      "llama.cpp",
+      "Transformers"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3090",
+      "NVIDIA A100"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 32768,
+    "memory_footprint_gb": 22,
+    "license": "MIT",
+    "source_links": [
+      "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+      "https://ollama.com/library/deepseek-r1"
+    ],
+    "notes": "Top distilled model, 72.6% on AIME 2024, outperforms OpenAI-o1-mini"
+  },
+  {
+    "model_name": "DeepSeek-R1-Distill-Llama-70B",
+    "release_date": "2025-01",
+    "organization": "DeepSeek",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 70,
+    "num_layers": 80,
+    "hidden_size": 8192,
+    "num_attention_heads": 64,
+    "vocab_size": 128256,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 8192,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit Q4_K_M",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Ollama",
+      "llama.cpp",
+      "Transformers"
+    ],
+    "recommended_gpu": [
+      "NVIDIA A100",
+      "AMD MI250X"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 8192,
+    "memory_footprint_gb": 45,
+    "license": "Llama 3.3 Community License",
+    "source_links": [
+      "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+      "https://ollama.com/library/deepseek-r1"
+    ],
+    "notes": "Largest distilled model, 94.5% on MATH-500, dense model SOTA"
   }
 ]

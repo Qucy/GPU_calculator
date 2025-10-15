@@ -116,6 +116,7 @@
             51%, 100% { opacity: 0; }
         }
     </style>
+    <!-- Styles specific to SelfHostLLM are loaded on calculator.html only -->
 </head>
 
 <body class="bg-charcoal text-soft-gray font-sans overflow-x-hidden">
@@ -135,7 +136,7 @@
                 <nav class="hidden md:flex items-center space-x-8">
                     <a href="#gpu" class="text-soft-gray hover:text-electric transition-colors">GPU</a>
                     <a href="#models" class="text-soft-gray hover:text-electric transition-colors">Open Source Models</a>
-                    <a href="#calculator" class="text-soft-gray hover:text-electric transition-colors">Calculator</a>
+                    <a href="calculator.html" class="text-soft-gray hover:text-electric transition-colors">Calculator</a>
                 </nav>
                 <button id="theme-toggle" class="p-2 rounded-lg bg-navy hover:bg-electric transition-colors">
                     <span class="text-soft-gray">🌙</span>
@@ -160,12 +161,12 @@
                     <span id="typed-text"></span>
                 </div>
                 <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                    <button onclick="scrollToCalculator()" class="px-8 py-4 bg-electric text-navy font-semibold rounded-lg hover-lift glow">
+                    <a href="calculator.html" class="px-8 py-4 bg-electric text-navy font-semibold rounded-lg hover-lift glow">
                         Start Calculating
-                    </button>
-                    <button onclick="showDocumentation()" class="px-8 py-4 border-2 border-electric text-electric font-semibold rounded-lg hover-lift">
+                    </a>
+                    <a href="calculation_engine.md" target="_blank" class="px-8 py-4 border-2 border-electric text-electric font-semibold rounded-lg hover-lift">
                         View Documentation
-                    </button>
+                    </a>
                 </div>
             </div>
         </div>
@@ -181,28 +182,39 @@
                 </p>
             </div>
             <div class="glass-effect rounded-xl p-6 hover-lift">
-                <div class="flex items-center justify-between mb-4">
-                    <h4 class="text-xl font-semibold">Current GPUs for LLMs</h4>
-                    <!-- Toggle: Cards ↔ Table -->
-                    <button id="gpu-catalog-view-toggle" aria-label="Toggle GPU catalog view" class="relative w-20 h-8 bg-navy/70 border border-soft-gray/20 rounded-full flex items-center px-1 justify-start hover:bg-navy/80 transition-colors">
-                        <span class="text-[10px] absolute left-2 text-soft-gray/60 select-none">Cards</span>
-                        <span class="text-[10px] absolute right-2 text-soft-gray/60 select-none">Table</span>
-                        <div id="gpu-catalog-view-knob" class="w-8 h-6 bg-electric rounded-full transition-all"></div>
-                    </button>
-                </div>
-                <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                    <div class="xl:col-span-8 min-w-0">
-                        <div id="gpu-catalog" class="grid grid-cols-1 gap-3"></div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <div class="flex items-center gap-4">
+                        <h4 class="text-xl font-semibold">Current GPUs for LLMs</h4>
+                        <!-- Toggle: Cards ↔ Table -->
+                        <button id="gpu-catalog-view-toggle" aria-label="Toggle GPU catalog view" class="relative w-20 h-8 bg-navy/70 border border-soft-gray/20 rounded-full flex items-center px-1 justify-start hover:bg-navy/80 transition-colors">
+                            <span class="text-[10px] absolute left-2 text-soft-gray/60 select-none">Cards</span>
+                            <span class="text-[10px] absolute right-2 text-soft-gray/60 select-none">Table</span>
+                            <div id="gpu-catalog-view-knob" class="w-8 h-6 bg-electric rounded-full transition-all"></div>
+                        </button>
                     </div>
-                    <div class="xl:col-span-4 min-w-0">
-                        <!-- Recommendations triggered by GPU selection -->
-                        <div id="gpu-reco-panel" class="hidden mt-6 xl:mt-0 xl:sticky xl:top-24 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
-                            <div class="flex items-center justify-between mb-3">
-                                <h5 class="text-lg font-semibold">Recommendations for Selected GPU</h5>
-                                <button id="gpu-reco-hide" class="text-xs px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded hover:bg-navy/80">Hide</button>
-                            </div>
-                            <div id="gpu-reco-content" class="grid grid-cols-1 gap-3"></div>
-                        </div>
+                    <!-- GPU Filters -->
+                    <div class="flex flex-wrap gap-3">
+                        <select id="gpu-vendor-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                            <option value="">All Vendors</option>
+                        </select>
+                        <select id="gpu-architecture-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                            <option value="">All Architectures</option>
+                        </select>
+                        <select id="gpu-memory-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                            <option value="">All Memory</option>
+                            <option value="8-16">8-16 GB</option>
+                            <option value="16-32">16-32 GB</option>
+                            <option value="32-64">32-64 GB</option>
+                            <option value="64+">64+ GB</option>
+                        </select>
+                        <button id="gpu-clear-filters" class="px-3 py-1 bg-amber/20 border border-amber/40 rounded text-sm hover:bg-amber/30">
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 gap-6">
+                    <div class="min-w-0">
+                        <div id="gpu-catalog" class="grid grid-cols-1 gap-3"></div>
                     </div>
                 </div>
             </div>
@@ -219,28 +231,43 @@
                 </p>
             </div>
             <div class="glass-effect rounded-xl p-6 hover-lift">
-                <div class="flex items-center justify-between mb-4">
-                    <h4 class="text-xl font-semibold">Open Source Models Catalog</h4>
-                    <!-- Toggle: Cards ↔ Table -->
-                    <button id="llm-catalog-view-toggle" aria-label="Toggle LLM catalog view" class="relative w-20 h-8 bg-navy/70 border border-soft-gray/20 rounded-full flex items-center px-1 justify-start hover:bg-navy/80 transition-colors">
-                        <span class="text-[10px] absolute left-2 text-soft-gray/60 select-none">Cards</span>
-                        <span class="text-[10px] absolute right-2 text-soft-gray/60 select-none">Table</span>
-                        <div id="llm-catalog-view-knob" class="w-8 h-6 bg-electric rounded-full transition-all"></div>
-                    </button>
-                </div>
-                <div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
-                    <div class="xl:col-span-8 min-w-0">
-                        <div id="llm-catalog" class="grid grid-cols-1 gap-3"></div>
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                    <div class="flex items-center gap-4">
+                        <h4 class="text-xl font-semibold">Open Source Models Catalog</h4>
+                        <!-- Toggle: Cards ↔ Table -->
+                        <button id="llm-catalog-view-toggle" aria-label="Toggle LLM catalog view" class="relative w-20 h-8 bg-navy/70 border border-soft-gray/20 rounded-full flex items-center px-1 justify-start hover:bg-navy/80 transition-colors">
+                            <span class="text-[10px] absolute left-2 text-soft-gray/60 select-none">Cards</span>
+                            <span class="text-[10px] absolute right-2 text-soft-gray/60 select-none">Table</span>
+                            <div id="llm-catalog-view-knob" class="w-8 h-6 bg-electric rounded-full transition-all"></div>
+                        </button>
                     </div>
-                    <div class="xl:col-span-4 min-w-0">
-                        <!-- Recommendations triggered by LLM selection -->
-                        <div id="llm-reco-panel" class="hidden mt-6 xl:mt-0 xl:sticky xl:top-24 xl:max-h-[calc(100vh-8rem)] xl:overflow-y-auto">
-                            <div class="flex items-center justify-between mb-3">
-                                <h5 class="text-lg font-semibold">Recommendations for Selected Model</h5>
-                                <button id="llm-reco-hide" class="text-xs px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded hover:bg-navy/80">Hide</button>
-                            </div>
-                            <div id="llm-reco-content" class="grid grid-cols-1 gap-3"></div>
-                        </div>
+                    <!-- LLM Filters -->
+                    <div class="flex flex-wrap gap-3">
+                        <select id="llm-size-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                            <option value="">All Sizes</option>
+                            <option value="small">Small (< 10B)</option>
+                            <option value="medium">Medium (10B-50B)</option>
+                            <option value="large">Large (50B+)</option>
+                        </select>
+                        <select id="llm-type-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                            <option value="">All Types</option>
+                            <option value="dense">Dense</option>
+                            <option value="moe">MoE</option>
+                        </select>
+                        <select id="llm-license-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                            <option value="">All Licenses</option>
+                            <option value="apache">Apache 2.0</option>
+                            <option value="mit">MIT</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                        <button id="llm-clear-filters" class="px-3 py-1 bg-amber/20 border border-amber/40 rounded text-sm hover:bg-amber/30">
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 gap-6">
+                    <div class="min-w-0">
+                        <div id="llm-catalog" class="grid grid-cols-1 gap-3"></div>
                     </div>
                 </div>
             </div>
@@ -253,331 +280,11 @@
             <div class="text-center mb-12">
                 <h3 class="text-3xl md:text-4xl font-bold mb-4 gradient-text">GPU Requirements Calculator</h3>
                 <p class="text-lg text-soft-gray max-w-2xl mx-auto">
-                    Configure your AI model specifications and get instant GPU recommendations with detailed performance analysis.
+                    The calculator UI is being refactored. Stay tuned.
                 </p>
             </div>
-
-            <div class="grid lg:grid-cols-3 gap-8">
-                <!-- Input Controls Panel -->
-                <div class="lg:col-span-2">
-                    <div class="grid md:grid-cols-2 gap-6">
-                    <!-- Model Selection -->
-                    <div class="glass-effect rounded-xl p-6 hover-lift">
-                        <h4 class="text-xl font-semibold mb-4 flex items-center">
-                            <span class="w-6 h-6 bg-electric rounded mr-3 flex items-center justify-center text-navy text-sm font-bold">1</span>
-                            Model Selection
-                        </h4>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium mb-2">AI Model</label>
-                                <select id="model-select" class="w-full p-3 bg-navy border border-soft-gray/20 rounded-lg focus:border-electric focus:outline-none transition-colors">
-                                    <option value="qwen-ds-7b">DeepSeek Distilled Qwen (7B)</option>
-                                    <option value="qwen-ds-14b">DeepSeek Distilled Qwen (14B)</option>
-                                    <option value="qwen-ds-32b">DeepSeek Distilled Qwen (32B)</option>
-                                    <option value="qwen3-7b">Qwen 3 (7B)</option>
-                                    <option value="qwen3-14b">Qwen 3 (14B)</option>
-                                    <option value="qwen3-32b">Qwen 3 (32B)</option>
-                                    <option value="deepseek-v3">DeepSeek V3 (671B parameters)</option>
-                                    <option value="custom">Custom Model</option>
-                                </select>
-                            </div>
-                            <div id="custom-model-params" class="hidden">
-                                <label class="block text-sm font-medium mb-2">Custom Parameters (Billions)</label>
-                                <input type="number" id="custom-params" class="w-full p-3 bg-navy border border-soft-gray/20 rounded-lg focus:border-electric focus:outline-none transition-colors" placeholder="7.0" step="0.1" min="0.1">
-                            </div>
-                            <div class="text-sm text-soft-gray/70">
-                                Parameters: <span id="param-count" class="font-mono text-electric">7.0B</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Quantization -->
-                    <div class="glass-effect rounded-xl p-6 hover-lift">
-                        <h4 class="text-xl font-semibold mb-4 flex items-center">
-                            <span class="w-6 h-6 bg-electric rounded mr-3 flex items-center justify-center text-navy text-sm font-bold">2</span>
-                            Quantization
-                        </h4>
-                        <div class="grid grid-cols-2 gap-3">
-                            <label class="quantization-option flex items-center p-3 bg-navy rounded-lg cursor-pointer hover:bg-navy/80 transition-colors">
-                                <input type="radio" name="quantization" value="fp32" class="sr-only">
-                                <div class="w-4 h-4 rounded-full border-2 border-soft-gray/50 mr-3 flex items-center justify-center">
-                                    <div class="w-2 h-2 rounded-full bg-electric scale-0 transition-transform"></div>
-                                </div>
-                                <div>
-                                    <div class="font-medium">FP32</div>
-                                    <div class="text-xs text-soft-gray/70">4 bytes</div>
-                                </div>
-                            </label>
-                            <label class="quantization-option flex items-center p-3 bg-navy rounded-lg cursor-pointer hover:bg-navy/80 transition-colors">
-                                <input type="radio" name="quantization" value="fp16" class="sr-only" checked>
-                                <div class="w-4 h-4 rounded-full border-2 border-electric mr-3 flex items-center justify-center">
-                                    <div class="w-2 h-2 rounded-full bg-electric scale-100 transition-transform"></div>
-                                </div>
-                                <div>
-                                    <div class="font-medium">FP16</div>
-                                    <div class="text-xs text-soft-gray/70">2 bytes</div>
-                                </div>
-                            </label>
-                            <label class="quantization-option flex items-center p-3 bg-navy rounded-lg cursor-pointer hover:bg-navy/80 transition-colors">
-                                <input type="radio" name="quantization" value="bf16" class="sr-only">
-                                <div class="w-4 h-4 rounded-full border-2 border-soft-gray/50 mr-3 flex items-center justify-center">
-                                    <div class="w-2 h-2 rounded-full bg-electric scale-0 transition-transform"></div>
-                                </div>
-                                <div>
-                                    <div class="font-medium">BF16</div>
-                                    <div class="text-xs text-soft-gray/70">2 bytes</div>
-                                </div>
-                            </label>
-                            <label class="quantization-option flex items-center p-3 bg-navy rounded-lg cursor-pointer hover:bg-navy/80 transition-colors">
-                                <input type="radio" name="quantization" value="int8" class="sr-only">
-                                <div class="w-4 h-4 rounded-full border-2 border-soft-gray/50 mr-3 flex items-center justify-center">
-                                    <div class="w-2 h-2 rounded-full bg-electric scale-0 transition-transform"></div>
-                                </div>
-                                <div>
-                                    <div class="font-medium">INT8</div>
-                                    <div class="text-xs text-soft-gray/70">1 byte</div>
-                                </div>
-                            </label>
-                            <label class="quantization-option flex items-center p-3 bg-navy rounded-lg cursor-pointer hover:bg-navy/80 transition-colors">
-                                <input type="radio" name="quantization" value="fp8" class="sr-only">
-                                <div class="w-4 h-4 rounded-full border-2 border-soft-gray/50 mr-3 flex items-center justify-center">
-                                    <div class="w-2 h-2 rounded-full bg-electric scale-0 transition-transform"></div>
-                                </div>
-                                <div>
-                                    <div class="font-medium">FP8</div>
-                                    <div class="text-xs text-soft-gray/70">1 byte</div>
-                                </div>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Context Length -->
-                    <div class="glass-effect rounded-xl p-6 hover-lift">
-                        <h4 class="text-xl font-semibold mb-4 flex items-center">
-                            <span class="w-6 h-6 bg-electric rounded mr-3 flex items-center justify-center text-navy text-sm font-bold">3</span>
-                            Context Length
-                        </h4>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium mb-2">Max Context (tokens)</label>
-                                <input type="range" id="context-slider" min="512" max="128000" value="4096" step="512" class="w-full h-2 bg-navy rounded-lg appearance-none cursor-pointer slider-thumb">
-                            </div>
-                            <div class="flex justify-between text-sm text-soft-gray/70">
-                                <span>512</span>
-                                <span id="context-value" class="font-mono text-electric">4,096</span>
-                                <span>128K</span>
-                            </div>
-                            <div class="flex flex-wrap gap-2 mt-2">
-                                <button class="context-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-context="2048">2K</button>
-                                <button class="context-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-context="4096">4K</button>
-                                <button class="context-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-context="8192">8K</button>
-                                <button class="context-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-context="32000">32K</button>
-                                <button class="context-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-context="128000">128K</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Concurrency & Batch Size -->
-                    <div class="glass-effect rounded-xl p-6 hover-lift">
-                        <h4 class="text-xl font-semibold mb-4 flex items-center">
-                            <span class="w-6 h-6 bg-electric rounded mr-3 flex items-center justify-center text-navy text-sm font-bold">4</span>
-                            Performance Settings
-                        </h4>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium mb-2">Concurrency Level</label>
-                                <div class="flex items-center space-x-3">
-                                    <button id="concurrency-dec" class="w-8 h-8 bg-navy rounded flex items-center justify-center hover:bg-electric transition-colors">-</button>
-                                    <input type="number" id="concurrency-input" value="1" min="1" max="1000" class="flex-1 p-2 bg-navy border border-soft-gray/20 rounded text-center focus:border-electric focus:outline-none transition-colors">
-                                    <button id="concurrency-inc" class="w-8 h-8 bg-navy rounded flex items-center justify-center hover:bg-electric transition-colors">+</button>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium mb-2">Batch Size</label>
-                                <input type="range" id="batch-slider" min="1" max="256" value="1" class="w-full h-2 bg-navy rounded-lg appearance-none cursor-pointer slider-thumb">
-                                <div class="flex justify-between text-sm text-soft-gray/70 mt-2">
-                                    <span>1</span>
-                                    <span id="batch-value" class="font-mono text-electric">1</span>
-                                    <span>256</span>
-                                </div>
-                                <div class="flex flex-wrap gap-2 mt-2">
-                                    <button class="batch-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-batch="1">1</button>
-                                    <button class="batch-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-batch="4">4</button>
-                                    <button class="batch-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-batch="8">8</button>
-                                    <button class="batch-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-batch="16">16</button>
-                                    <button class="batch-preset px-3 py-1 bg-navy rounded hover:bg-electric transition-colors" data-batch="32">32</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    </div>
-                </div>
-
-                <!-- Results Panel -->
-                <div class="lg:col-span-1 space-y-6">
-                    <!-- Memory Breakdown -->
-                    <div class="glass-effect rounded-xl p-6 hover-lift">
-                        <h4 class="text-xl font-semibold mb-4">Memory Requirements</h4>
-                        <div class="grid md:grid-cols-2 gap-6">
-                            <div>
-                                <div id="memory-chart" class="w-full h-64"></div>
-                            </div>
-                            <div class="space-y-4">
-                                <div class="flex justify-between items-center p-3 bg-navy/50 rounded-lg">
-                                    <span class="flex items-center">
-                                        <span class="w-3 h-3 bg-electric rounded-full mr-2"></span>
-                                        Model Weights
-                                    </span>
-                                    <span id="weights-memory" class="font-mono text-electric">13.0 GB</span>
-                                </div>
-                                <div class="flex justify-between items-center p-3 bg-navy/50 rounded-lg">
-                                    <span class="flex items-center">
-                                        <span class="w-3 h-3 bg-amber rounded-full mr-2"></span>
-                                        KV Cache
-                                    </span>
-                                    <span id="cache-memory" class="font-mono text-amber">2.0 GB</span>
-                                </div>
-                                <div class="flex justify-between items-center p-3 bg-navy/50 rounded-lg">
-                                    <span class="flex items-center">
-                                        <span class="w-3 h-3 bg-sage rounded-full mr-2"></span>
-                                        Activation
-                                    </span>
-                                    <span id="activation-memory" class="font-mono text-sage">0.5 GB</span>
-                                </div>
-                                <div class="flex justify-between items-center p-3 bg-navy/50 rounded-lg">
-                                    <span class="flex items-center">
-                                        <span class="w-3 h-3 bg-soft-gray rounded-full mr-2"></span>
-                                        Overhead
-                                    </span>
-                                    <span id="overhead-memory" class="font-mono text-soft-gray">4.9 GB</span>
-                                </div>
-                                <div class="border-t border-soft-gray/20 pt-4 mt-4">
-                                    <div class="flex justify-between items-center text-lg font-semibold">
-                                        <span>Total Memory</span>
-                                        <span id="total-memory" class="font-mono text-electric">20.4 GB</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Performance Metrics -->
-                    <div class="glass-effect rounded-xl p-6 hover-lift">
-                        <h4 class="text-xl font-semibold mb-4">Performance Estimates</h4>
-                        <div class="grid md:grid-cols-3 gap-4">
-                            <div class="text-center p-4 bg-navy/50 rounded-lg">
-                                <div class="text-2xl font-bold text-electric mb-2" id="inference-speed">42</div>
-                                <div class="text-sm text-soft-gray/70">Tokens/Second</div>
-                            </div>
-                            <div class="text-center p-4 bg-navy/50 rounded-lg">
-                                <div class="text-2xl font-bold text-amber mb-2" id="memory-bandwidth">68</div>
-                                <div class="text-sm text-soft-gray/70">Bandwidth Utilization (%)</div>
-                            </div>
-                            <div class="text-center p-4 bg-navy/50 rounded-lg">
-                                <div class="text-2xl font-bold text-sage mb-2" id="effective-speed">42</div>
-                                <div class="text-sm text-soft-gray/70">Speed per Request</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    
-                </div>
-            </div>
-        </div>
-        <!-- Recommended GPUs (90% page width, outside container) -->
-        <div class="w-[90%] mx-auto px-6">
-            <div class="glass-effect rounded-xl p-6 hover-lift mt-8">
-                <div class="flex items-center justify-between mb-4">
-                    <h4 class="text-xl font-semibold">Recommended GPUs</h4>
-                    <!-- Sliding toggle: Cards ↔ Table -->
-                    <button id="gpu-view-toggle" aria-label="Toggle recommendations view" class="relative w-20 h-8 bg-navy/70 border border-soft-gray/20 rounded-full flex items-center px-1 justify-start hover:bg-navy/80 transition-colors">
-                        <span class="text-[10px] absolute left-2 text-soft-gray/60 select-none">Cards</span>
-                        <span class="text-[10px] absolute right-2 text-soft-gray/60 select-none">Table</span>
-                        <div id="gpu-view-knob" class="w-8 h-6 bg-electric rounded-full transition-all"></div>
-                    </button>
-                </div>
-                <div id="gpu-recommendations" class="grid grid-cols-1 gap-3">
-                    <!-- GPU recommendations will be populated by JavaScript -->
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Technical Details Section -->
-    <section id="documentation" class="py-16 bg-navy/30">
-        <div class="max-w-7xl mx-auto px-6">
-            <div class="text-center mb-12">
-                <h3 class="text-3xl md:text-4xl font-bold mb-4 gradient-text">Technical Documentation</h3>
-                <p class="text-lg text-soft-gray max-w-2xl mx-auto">
-                    Understanding the calculations and methodologies behind GPU requirements estimation.
-                </p>
-            </div>
-
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <!-- Memory Calculation Formula -->
-                <div class="glass-effect rounded-xl p-6 hover-lift">
-                    <h4 class="text-xl font-semibold mb-4 text-electric">Memory Calculations</h4>
-                    <div class="space-y-4 text-sm">
-                        <div class="p-4 bg-navy/50 rounded-lg font-mono text-xs">
-                            <div class="text-amber mb-2">Model Weights Memory:</div>
-                            <div>Parameters × Bytes_per_Parameter</div>
-                        </div>
-                        <div class="p-4 bg-navy/50 rounded-lg font-mono text-xs">
-                            <div class="text-amber mb-2">KV Cache Memory:</div>
-                            <div>2 × Layers × Hidden_Dim × Context</div>
-                        </div>
-                        <div class="p-4 bg-navy/50 rounded-lg font-mono text-xs">
-                            <div class="text-amber mb-2">Total Memory:</div>
-                            <div>(Weights + Cache + Activation) × 1.3</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Performance Metrics -->
-                <div class="glass-effect rounded-xl p-6 hover-lift">
-                    <h4 class="text-xl font-semibold mb-4 text-electric">Performance Metrics</h4>
-                    <div class="space-y-4 text-sm">
-                        <div class="p-4 bg-navy/50 rounded-lg">
-                            <div class="font-semibold text-amber mb-2">Inference Speed</div>
-                            <div class="text-soft-gray/70">Based on GPU memory bandwidth and model size</div>
-                        </div>
-                        <div class="p-4 bg-navy/50 rounded-lg">
-                            <div class="font-semibold text-amber mb-2">Memory Bandwidth</div>
-                            <div class="text-soft-gray/70">Utilization percentage of available bandwidth</div>
-                        </div>
-                        <div class="p-4 bg-navy/50 rounded-lg">
-                            <div class="font-semibold text-amber mb-2">Concurrency Impact</div>
-                            <div class="text-soft-gray/70">Speed per request with concurrent operations</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- GPU Specifications -->
-                <div class="glass-effect rounded-xl p-6 hover-lift">
-                    <h4 class="text-xl font-semibold mb-4 text-electric">GPU Database</h4>
-                    <div class="space-y-3 text-sm">
-                        <div class="flex justify-between">
-                            <span>H200</span>
-                            <span class="text-soft-gray/70">141GB, 4,800 GB/s</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>H100</span>
-                            <span class="text-soft-gray/70">80GB, 3,350 GB/s</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>H20</span>
-                            <span class="text-soft-gray/70">96GB, 2,000 GB/s</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>A100</span>
-                            <span class="text-soft-gray/70">80GB, 2,039 GB/s</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>L40</span>
-                            <span class="text-soft-gray/70">48GB, 846 GB/s</span>
-                        </div>
-                    </div>
-                </div>
+            <div class="glass-effect rounded-xl p-8 text-center text-soft-gray">
+                Calculator components have been cleaned for refactor.
             </div>
         </div>
     </section>
@@ -608,5 +315,6 @@
 
     <!-- JavaScript -->
     <script src="main.js"></script>
+
 </body>
 </html>
