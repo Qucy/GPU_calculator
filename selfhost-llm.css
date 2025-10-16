@@ -138,7 +138,7 @@ label {
 }
 /* Title labels for key fields (bold, pure white) */
 .field-title {
-  color: #ffffff;
+  color: var(--color-text);
   font-weight: 700;
 }
 input[type="text"],
@@ -173,7 +173,7 @@ input[type="range"] {
 
 /* ========== RADIO GROUPS (INLINE) ========== */
 .radio-group { margin-bottom: 1rem; }
-.radio-group-label { display: block; margin-bottom: 0.5rem; font-weight: 700; color: #ffffff; }
+.radio-group-label { display: block; margin-bottom: 0.5rem; font-weight: 700; color: var(--color-text); }
 .radio-options { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 .radio-option { display: inline-flex; align-items: center; gap: 0.35rem; margin-bottom: 0; cursor: pointer; color: var(--color-text-muted); font-weight: 400; }
 .radio-option input[type="radio"] { cursor: pointer; }
@@ -537,4 +537,20 @@ input[type="range"] {
 /* Hide legacy footer on calculator; shared Tailwind footer is appended in HTML */
 .footer {
   display: none !important;
+}
+
+/* ========== LIGHT THEME OVERRIDES ========== */
+/* When body has .light, override variables for light mode */
+body.light {
+  --color-bg: #f3f4f6; /* gray-100 */
+  --color-surface: #ffffff;
+  --color-surface-glass: rgba(255, 255, 255, 0.8);
+  --color-border: rgba(0, 0, 0, 0.12);
+  --color-border-focus: #2563eb; /* blue-600 */
+  --color-text: #111827; /* gray-900 */
+  --color-text-muted: #4b5563; /* gray-600 */
+  --color-accent: #00d4ff;
+  --color-accent-glow: rgba(0, 212, 255, 0.3);
+  --color-sage: #7fb069;
+  --color-sage-glow: rgba(127, 176, 105, 0.3);
 }

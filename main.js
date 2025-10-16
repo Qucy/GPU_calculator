@@ -1965,14 +1965,19 @@ class GPUCalculator {
     toggleTheme() {
         // Simple theme toggle implementation
         const body = document.body;
-        const isDark = body.classList.contains('bg-charcoal');
+        // Consider both possible dark background classes
+        const isDark = body.classList.contains('bg-charcoal') || body.classList.contains('bg-deep-charcoal');
+        const toggleBtn = document.getElementById('theme-toggle');
+        const iconSpan = toggleBtn ? toggleBtn.querySelector('span') : null;
         
         if (isDark) {
-            body.classList.remove('bg-charcoal', 'text-soft-gray');
+            body.classList.remove('bg-charcoal', 'bg-deep-charcoal', 'text-soft-gray');
             body.classList.add('bg-gray-100', 'text-gray-900');
+            if (iconSpan) iconSpan.textContent = '☀️';
         } else {
             body.classList.remove('bg-gray-100', 'text-gray-900');
             body.classList.add('bg-charcoal', 'text-soft-gray');
+            if (iconSpan) iconSpan.textContent = '🌙';
         }
     }
 

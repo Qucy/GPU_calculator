@@ -374,14 +374,7 @@ function updateModelInputMethod() {
 
 function updateModelSelection() {
     const modelSelect = document.getElementById('model-preset');
-    const selectedOption = modelSelect.options[modelSelect.selectedIndex];
-    const defaultQuant = selectedOption.getAttribute('data-quant');
-    
-    // Set the quantization dropdown to the model's default
-    if (defaultQuant) {
-        document.getElementById('quantization').value = defaultQuant;
-    }
-    
+    // Do not auto-change quantization on model selection; keep user's choice
     calculate();
     if (typeof updateURL === 'function') updateURL();
 }
@@ -692,5 +685,25 @@ window.onload = async function() {
         updateContextInputMethod();
         updateGPUSpecs();
         calculate();
+    }
+
+    // Theme toggle for calculator page
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            const body = document.body;
+            const iconSpan = themeToggle.querySelector('span');
+            const isDark = body.classList.contains('bg-deep-charcoal') || body.classList.contains('bg-charcoal');
+
+            if (isDark) {
+                body.classList.remove('bg-deep-charcoal', 'bg-charcoal', 'text-soft-gray');
+                body.classList.add('bg-gray-100', 'text-gray-900', 'light');
+                if (iconSpan) iconSpan.textContent = '☀️';
+            } else {
+                body.classList.remove('bg-gray-100', 'text-gray-900', 'light');
+                body.classList.add('bg-deep-charcoal', 'text-soft-gray');
+                if (iconSpan) iconSpan.textContent = '🌙';
+            }
+        });
     }
 };
