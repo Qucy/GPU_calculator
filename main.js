@@ -1108,6 +1108,34 @@ class GPUCalculator {
     }
 
     // Generic GPU catalog renderer for both GPU and Models pages
+    getVendorLogoPath(vendor) {
+        const v = String(vendor || '').toLowerCase();
+        if (v.includes('nvidia')) return 'resources/nvidia.png';
+        if (v.includes('alibaba')) return 'resources/alibaba.png';
+        if (v.includes('baidu')) return 'resources/baidu.png';
+        if (v.includes('huawei')) return 'resources/huawei.png';
+        return null;
+    }
+
+    getGpuLogoPath(gpu) {
+        return gpu?.logo_path || this.getVendorLogoPath(gpu?.vendor) || 'resources/icon-gpu.png';
+    }
+
+    getLLMLogoPath(m) {
+        if (m?.logo_path) return m.logo_path;
+        const org = String(m?.organization || '').toLowerCase();
+        const name = String(m?.model_name || '').toLowerCase();
+        // Organization-based mapping
+        if (org.includes('openai') || name.includes('gpt-oss')) return 'resources/openai.png';
+        if (org.includes('zhipu') || org.includes('thudm') || name.includes('glm')) return 'resources/zhipu.png';
+        if (org.includes('alibaba') || name.includes('qwen')) return 'resources/alibaba.png';
+        if (org.includes('deepseek') || name.includes('deepseek')) return 'resources/deepseek.png';
+        if (org.includes('moonshot') || name.includes('kimi')) return 'resources/kimi.png';
+        if (org.includes('meta') || name.includes('llama')) return 'resources/llama.png';
+        if (org.includes('mistral')) return 'resources/mistral.png';
+        return 'resources/icon-llm.svg';
+    }
+
     renderGPUCatalog(containerId, viewMode) {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -1201,10 +1229,11 @@ class GPUCalculator {
                 card.className = 'p-4 bg-navy/50 rounded-lg hover-lift border border-soft-gray/10';
                 const perfPerW = (gpu.fp16_tflops && gpu.tdp_w && !isNaN(parseFloat(gpu.tdp_w))) ? (gpu.fp16_tflops / parseFloat(gpu.tdp_w)).toFixed(2) : null;
                 const perfPerDollar = (gpu.fp16_tflops && gpu.price_usd) ? (gpu.fp16_tflops / gpu.price_usd).toFixed(2) : null;
+                const logoSrc = this.getGpuLogoPath(gpu);
                 card.innerHTML = `
                     <div class="flex items-center justify-between mb-2">
                         <div class="flex items-center gap-2">
-                            <img src="resources/icon-gpu.png" alt="GPU" class="w-6 h-6">
+                            <img src="${logoSrc}" alt="${gpu.vendor || 'GPU'}" class="w-6 h-6 rounded-sm">
                             <div class="font-semibold">${gpu.name || '-'}</div>
                         </div>
                         <div class="text-xs text-soft-gray/70">${gpu.vendor || ''}${gpu.architecture ? ' • ' + gpu.architecture : ''}</div>
@@ -1374,10 +1403,11 @@ class GPUCalculator {
             list.forEach(m => {
                 const card = document.createElement('div');
                 card.className = 'p-4 bg-navy/50 rounded-lg hover-lift border border-soft-gray/10';
+                const logoSrc = this.getLLMLogoPath(m);
                 card.innerHTML = `
                     <div class="flex items-center justify-between mb-2">
                         <div class="flex items-center gap-2">
-                            <img src="resources/icon-llm.svg" alt="LLM" class="w-6 h-6">
+                            <img src="${logoSrc}" alt="${m.organization || 'LLM'}" class="w-6 h-6 rounded-sm">
                             <div class="font-semibold">${m.model_name || '-'}</div>
                         </div>
                         <div class="text-xs text-soft-gray/70">${m.organization || ''}</div>

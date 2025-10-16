@@ -3,6 +3,7 @@
     {
       "name": "NVIDIA A100",
       "vendor": "NVIDIA",
+      "logo_path": "resources/nvidia.png",
       "architecture": "Ampere (GA100)",
       "process_node": "TSMC 7 nm",
       "cuda_cores": 6912,
@@ -27,6 +28,7 @@
     {
       "name": "NVIDIA H100",
       "vendor": "NVIDIA",
+      "logo_path": "resources/nvidia.png",
       "architecture": "Hopper (GH100) with Transformer Engine",
       "process_node": "TSMC 4N (5 nm class)",
       "cuda_cores": 16896,
@@ -51,6 +53,7 @@
     {
       "name": "NVIDIA H200",
       "vendor": "NVIDIA",
+      "logo_path": "resources/nvidia.png",
       "architecture": "Hopper (GH100/Hopper 2)",
       "process_node": "TSMC 4N (5 nm class)",
       "cuda_cores": 16896,
@@ -75,6 +78,7 @@
     {
       "name": "NVIDIA H20",
       "vendor": "NVIDIA",
+      "logo_path": "resources/nvidia.png",
       "architecture": "Hopper (China-compliant)",
       "process_node": "TSMC 4N (5 nm class)",
       "cuda_cores": 16896,
@@ -99,6 +103,7 @@
     {
       "name": "NVIDIA L40S",
       "vendor": "NVIDIA",
+      "logo_path": "resources/nvidia.png",
       "architecture": "Ada Lovelace (AD102)",
       "process_node": "TSMC 5 nm",
       "cuda_cores": 18176,
@@ -123,6 +128,7 @@
     {
       "name": "Biren BR100",
       "vendor": "Biren Technology",
+      "logo_path": null,
       "architecture": "Bilin (BR100) MCM dual-die",
       "process_node": "TSMC 7 nm",
       "cuda_cores": "Not disclosed",
@@ -148,6 +154,7 @@
     {
       "name": "Alibaba Pingtouge PPU",
       "vendor": "Alibaba Group (Pingtouge)",
+      "logo_path": "resources/alibaba.png",
       "architecture": "PPU Gen1",
       "process_node": "Domestic 7 nm (SMIC)",
       "cuda_cores": "Not disclosed",
@@ -172,6 +179,7 @@
     {
       "name": "Baidu Kunlunxin K100",
       "vendor": "Baidu",
+      "logo_path": "resources/baidu.png",
       "architecture": "Kunlunxin 1st Gen XPU-K",
       "process_node": "Samsung 14 nm",
       "cuda_cores": "Not disclosed",
@@ -196,6 +204,7 @@
     {
       "name": "Baidu Kunlunxin K200",
       "vendor": "Baidu",
+      "logo_path": "resources/baidu.png",
       "architecture": "Kunlunxin Gen1 XPU",
       "process_node": "Samsung 14 nm",
       "cuda_cores": "Not disclosed",
@@ -220,6 +229,7 @@
     {
       "name": "Huawei Ascend 910B",
       "vendor": "Huawei",
+      "logo_path": "resources/huawei.png",
       "architecture": "Da Vinci (Ascend 910B)",
       "process_node": "TSMC 7 nm / SMIC N+1",
       "cuda_cores": "Not applicable (Da Vinci cores)",
