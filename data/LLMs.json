@@ -1,6 +1,6 @@
 [
   {
-    "model_name": "Llama 3 70B",
+    "model_name": "Llama3 70B",
     "release_date": "2024-04",
     "organization": "Meta AI",
     "architecture_type": "Dense",
@@ -427,9 +427,6 @@
     ],
     "notes": "Lightweight version of GLM-4.5, optimized for efficiency"
   },
-  
-  
-  
   {
     "model_name": "Qwen3-8B",
     "release_date": "2025-04",
@@ -574,7 +571,6 @@
     ],
     "notes": "Flagship dense model, outperforms Qwen2.5-72B with half the parameters"
   },
-  
   {
     "model_name": "DeepSeek-R1-Distill-Qwen-7B",
     "release_date": "2025-01",
