@@ -51,5 +51,33 @@ Notes:
 - Tweak GPU database entries in `main.js` (`this.gpus`) to reflect hardware you care about.
 - Adjust layout and styling directly in `index.html` (Tailwind classes are configured inline).
 
+## GPU Dropdown Data Merge
+
+The calculator’s “GPU Model” dropdown merges two sources at runtime to keep things flexible:
+
+- Hardcoded options in `calculator.html` remain as-is (e.g., A100, H100).
+- Missing models from `data/GPUs.json` are appended on page load by `selfhost-llm.js`.
+
+Implementation details:
+- `selfhost-llm.js` → `augmentCalculatorGPUOptionsFromCatalog()`
+  - Fetches `data/GPUs.json` and appends any GPUs not already present.
+  - Dedupes using both the option `value` slug and word-boundary matching to avoid collisions (e.g., `H20` vs `H200`).
+  - Groups appended options under existing optgroups based on vendor and name (e.g., `NVIDIA RTX 40 Series`, `NVIDIA Professional`, `AMD Radeon`).
+  - Sets `data-vram` from `memory_gb` and `data-bandwidth` from `memory_bandwidth_tbps` (converted to GB/s).
+- `window.onload` awaits the augmentation so merged options are available before initialization and URL preselection.
+- `selfhost-llm.js` → `getGPUBandwidth(gpuModel)`
+  - Reads `data-bandwidth` from the selected option first.
+  - Falls back to a static map for known models.
+
+How to add GPUs:
+- Edit `data/GPUs.json` and include at minimum:
+  - `name` (e.g., `NVIDIA H20`), `vendor`, `memory_gb` (number or string like `"40 / 80"`).
+  - `memory_bandwidth_tbps` (number or numeric string in TB/s). This enables performance estimates for the new GPU.
+- Alternatively, add an `<option>` directly in `calculator.html`. The merge logic avoids duplicates if the same GPU exists in JSON.
+
+Notes:
+- If bandwidth is missing for a new GPU, performance estimates may remain hidden until `data-bandwidth` is available (via JSON or static map).
+- You can adjust optgroup mapping or insertion order in `augmentCalculatorGPUOptionsFromCatalog()` if you want specific placement.
+
 ## License
 Unlicensed by default. Add a `LICENSE` file if you plan to open-source under specific terms.

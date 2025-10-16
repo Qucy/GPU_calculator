@@ -102,6 +102,16 @@ function loadFromURL() {
 function getGPUBandwidth(gpuModel) {
     if (!gpuModel) return 0;
     
+    // Prefer bandwidth from the selected option's data attribute if available
+    const select = document.getElementById('gpu-type');
+    if (select && select.selectedIndex >= 0) {
+        const selectedOption = select.options[select.selectedIndex];
+        const bwAttr = selectedOption ? selectedOption.getAttribute('data-bandwidth') : null;
+        if (bwAttr && !isNaN(Number(bwAttr))) {
+            return Number(bwAttr);
+        }
+    }
+
     const bandwidthMap = {
         // RTX 40 Series
         'rtx4090': 1008,
@@ -127,6 +137,8 @@ function getGPUBandwidth(gpuModel) {
         'l40': 864,
         'l4': 300,
         't4': 320,
+        'h200': 4915,
+        'h20': 4096,
         
         // AMD Radeon
         'rx7900xtx': 960,
@@ -228,6 +240,99 @@ function updateGPUSpecs() {
     if (typeof updateURL === 'function') updateURL();
 }
 
+// --- Augment calculator GPU dropdown from JSON catalog ---
+async function augmentCalculatorGPUOptionsFromCatalog() {
+    const select = document.getElementById('gpu-type');
+    if (!select) return;
+
+    // Helper to parse memory_gb values like number or "40 / 80"
+    const parseMemoryGB = (v) => {
+        if (v == null) return null;
+        if (typeof v === 'number' && !isNaN(v)) return Math.round(Number(v));
+        const s = String(v);
+        const nums = s.match(/[\d.]+/g);
+        if (!nums || nums.length === 0) return null;
+        const vals = nums.map(n => Number(n)).filter(n => !isNaN(n));
+        if (vals.length === 0) return null;
+        return Math.round(Math.max(...vals));
+    };
+
+    const baseName = (name) => String(name || '').replace(/^(NVIDIA|AMD|Huawei|Baidu|Alibaba|Biren)\s+/i, '').trim();
+    const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const existsByBaseNameOrSlug = (base, slug) => {
+        const b = String(base || '').toLowerCase();
+        const s = String(slug || '').toLowerCase();
+        const re = new RegExp(`(^|[^\\w])${escapeRegex(b)}([^\\w]|$)`, 'i');
+        return Array.from(select.querySelectorAll('option')).some(o => {
+            const val = (o.value || '').toLowerCase();
+            if (val === s) return true;
+            const t = (o.textContent || '').toLowerCase();
+            return re.test(t);
+        });
+    };
+    const ensureGroup = (label) => {
+        const groups = Array.from(select.querySelectorAll('optgroup'));
+        let group = groups.find(g => String(g.label).toLowerCase() === String(label).toLowerCase());
+        if (!group) {
+            group = document.createElement('optgroup');
+            group.label = label;
+            select.appendChild(group);
+        }
+        return group;
+    };
+    const groupLabelFor = (gpu) => {
+        const vendor = String(gpu.vendor || '').trim().toLowerCase();
+        const name = baseName(gpu.name || '');
+        if (/^rtx\s*40/i.test(name)) return 'NVIDIA RTX 40 Series';
+        if (/^rtx\s*30/i.test(name)) return 'NVIDIA RTX 30 Series';
+        if (vendor === 'nvidia') return 'NVIDIA Professional';
+        if (vendor === 'amd') return 'AMD Radeon';
+        return gpu.vendor ? gpu.vendor : 'Other Accelerators';
+    };
+    const slugFrom = (name) => baseName(name).toLowerCase().replace(/[^\w]+/g, '-');
+
+    try {
+        const res = await fetch('data/GPUs.json');
+        if (!res.ok) return;
+        const data = await res.json();
+        const gpus = Array.isArray(data?.gpus) ? data.gpus : (Array.isArray(data) ? data : []);
+        if (!gpus || gpus.length === 0) return;
+
+        gpus.forEach(gpu => {
+            const base = baseName(gpu.name || '');
+            if (!base) return;
+            // Skip if a matching base name already exists in any option label
+            const newSlug = slugFrom(gpu.name || '');
+            if (existsByBaseNameOrSlug(base, newSlug)) return;
+            const memGB = parseMemoryGB(gpu.memory_gb);
+            if (!memGB || isNaN(memGB) || memGB <= 0) return;
+            const groupLabel = groupLabelFor(gpu);
+            const group = ensureGroup(groupLabel);
+            const opt = document.createElement('option');
+            opt.value = newSlug;
+            opt.setAttribute('data-vram', String(memGB));
+            // Attach memory bandwidth in GB/s if available
+            const tbpsRaw = gpu.memory_bandwidth_tbps;
+            let tbps = null;
+            if (typeof tbpsRaw === 'number' && !isNaN(tbpsRaw)) {
+                tbps = tbpsRaw;
+            } else if (tbpsRaw != null) {
+                const n = parseFloat(String(tbpsRaw).replace(/[^\d.]/g, ''));
+                tbps = isNaN(n) ? null : n;
+            }
+            if (tbps && tbps > 0) {
+                const gbps = Math.round(tbps * 1024);
+                opt.setAttribute('data-bandwidth', String(gbps));
+            }
+            opt.textContent = `${base} (${memGB}GB VRAM)`;
+            group.appendChild(opt);
+        });
+    } catch (e) {
+        // Silently ignore catalog errors to avoid disrupting existing flow
+        console.warn('GPU catalog load failed:', e?.message || e);
+    }
+}
+
 function updateModelInputMethod() {
     const inputType = document.querySelector('input[name="model-input-type"]:checked').value;
     
@@ -320,16 +425,22 @@ function calculate() {
     document.getElementById('concurrent-requests').textContent = Math.max(0, maxConcurrentRequests).toFixed(2);
     document.getElementById('effective-context').textContent = effectiveContext.toLocaleString() + ' tokens';
     
-    // Show warnings
+    // Show warnings for insufficient capability
     const warningsDiv = document.getElementById('warnings');
     warningsDiv.innerHTML = '';
+    const cannotServeSingleRequest = maxConcurrentRequests < 1;
+    const modelExceedsVRAM = availableMemory < 0;
     
-    if (availableMemory < 0) {
-        warningsDiv.innerHTML += '<div class="warning">⚠ INSUFFICIENT MEMORY: Model requires more VRAM than available!</div>';
-    }
-    
-    if (maxConcurrentRequests < 1 && availableMemory > 0) {
-        warningsDiv.innerHTML += '<div class="warning">⚠ LOW MEMORY: Can handle less than 1 concurrent request with this context length!</div>';
+    if (modelExceedsVRAM || cannotServeSingleRequest) {
+        const suggestions = [
+            'Reduce model memory via stronger quantization (e.g., INT4/FP8)',
+            'Choose a smaller parameter model or MoE with lower active memory',
+            'Lower the context length to shrink KV cache per request',
+            'Add more GPUs or use a GPU with more VRAM'
+        ];
+        const title = '⚠ Current GPU does not meet the minimum requirements to serve this model';
+        const actionsHTML = `<div class="warning-actions">${suggestions.map(s => `• ${s}`).join('<br>')}</div>`;
+        warningsDiv.innerHTML = `<div class="warning"><div class="warning-title">${title}</div>${actionsHTML}</div>`;
     }
     
     // Calculate and display performance if GPU is selected
@@ -394,8 +505,15 @@ function calculate() {
                 if (tokensPerSecNum > 50) {
                     notes.push('• Performance should be smooth for most use cases');
                 }
+
+                const defaultNotes = [
+                    '• Use INT4/FP8 where acceptable to improve speed',
+                    '• Shorter context reduces KV cache size and boosts throughput',
+                    '• Higher memory bandwidth GPUs deliver more tokens/sec'
+                ];
                 
-                notesDiv.innerHTML = notes.length > 0 ? `<h4>Performance Tips:</h4>${notes.join('<br>')}` : '';
+                const tips = notes.length > 0 ? notes : defaultNotes;
+                notesDiv.innerHTML = `<h4>Performance Tips:</h4>${tips.join('<br>')}`;
             }
         } else {
             performanceSection.style.display = 'none';
@@ -532,8 +650,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Initialize on page load
-window.onload = function() {
+window.onload = async function() {
     displayAsciiArt();
+    // Augment GPU dropdown with any missing catalog entries
+    await augmentCalculatorGPUOptionsFromCatalog();
     
     // First check if we have URL parameters
     if (window.location.search) {

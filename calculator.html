@@ -1,45 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SelfHostLLM - GPU Memory Calculator for LLM Inference</title>
-    
+
     <!-- Primary Meta Tags -->
     <meta name="title" content="SelfHostLLM - GPU Memory Calculator for LLM Inference">
-    <meta name="description" content="Calculate GPU memory requirements and max concurrent requests for self-hosted LLM inference. Support for Llama, Qwen, DeepSeek, Mistral and more. Plan your AI infrastructure efficiently.">
-    <meta name="keywords" content="LLM, GPU calculator, VRAM calculator, self-hosted AI, Llama, Qwen, DeepSeek, Mistral, GPU memory, inference calculator, AI infrastructure">
+    <meta name="description"
+        content="Calculate GPU memory requirements and max concurrent requests for self-hosted LLM inference. Support for Llama, Qwen, DeepSeek, Mistral and more. Plan your AI infrastructure efficiently.">
+    <meta name="keywords"
+        content="LLM, GPU calculator, VRAM calculator, self-hosted AI, Llama, Qwen, DeepSeek, Mistral, GPU memory, inference calculator, AI infrastructure">
     <meta name="author" content="Eran Sandler">
-    
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://selfhostllm.org/">
     <meta property="og:title" content="SelfHostLLM - GPU Memory Calculator for LLM Inference">
-    <meta property="og:description" content="Calculate GPU memory requirements and max concurrent requests for self-hosted LLM inference. Support for Llama, Qwen, DeepSeek, Mistral and more.">
+    <meta property="og:description"
+        content="Calculate GPU memory requirements and max concurrent requests for self-hosted LLM inference. Support for Llama, Qwen, DeepSeek, Mistral and more.">
     <meta property="og:image" content="https://selfhostllm.org/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
     <meta property="og:site_name" content="SelfHostLLM">
-    
+
     <!-- Twitter / X -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:url" content="https://selfhostllm.org/">
     <meta name="twitter:title" content="SelfHostLLM - GPU Memory Calculator for LLM Inference">
-    <meta name="twitter:description" content="Calculate GPU memory requirements and max concurrent requests for self-hosted LLM inference. Plan your AI infrastructure efficiently.">
+    <meta name="twitter:description"
+        content="Calculate GPU memory requirements and max concurrent requests for self-hosted LLM inference. Plan your AI infrastructure efficiently.">
     <meta name="twitter:image" content="https://selfhostllm.org/og-image.png">
     <meta name="twitter:creator" content="@erans">
-    
+
     <!-- Additional Meta Tags -->
     <meta name="robots" content="index, follow">
     <meta name="language" content="English">
     <meta name="theme-color" content="#00ff00">
     <link rel="canonical" href="https://selfhostllm.org/">
-    
+
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
-    
+
     <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
 
     <!-- Tailwind CSS (for shared header/footer) -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -72,6 +79,7 @@
 
     <link rel="stylesheet" href="selfhost-llm.css">
 </head>
+
 <body class="bg-deep-charcoal text-soft-gray font-sans overflow-x-hidden">
     <!-- Shared Navigation Header -->
     <header class="fixed top-0 left-0 right-0 z-50 glass-effect">
@@ -85,8 +93,10 @@
                 </div>
                 <nav class="hidden md:flex items-center space-x-8">
                     <a href="index.html#gpu" class="text-soft-gray hover:text-electric transition-colors">GPU</a>
-                    <a href="index.html#models" class="text-soft-gray hover:text-electric transition-colors">Open Source Models</a>
-                    <a href="calculator.html" class="text-soft-gray hover:text-electric transition-colors">Calculator</a>
+                    <a href="index.html#models" class="text-soft-gray hover:text-electric transition-colors">Open Source
+                        Models</a>
+                    <a href="calculator.html"
+                        class="text-soft-gray hover:text-electric transition-colors">Calculator</a>
                 </nav>
                 <button id="theme-toggle" class="p-2 rounded-lg bg-navy hover:bg-electric transition-colors">
                     <span class="text-soft-gray">🌙</span>
@@ -94,112 +104,122 @@
             </div>
         </div>
     </header>
-    
-    
-    
+
+
+
+    <div class="overlay" id="overlay" onclick="closeShareDialog()"></div>
     <div class="explanation-dialog" id="explanationDialog">
         <h3>📊 How Max Concurrent Requests is Calculated</h3>
-        
+
         <div class="explanation-content">
             <h4>The Formula:</h4>
             <div class="formula-box">
                 <code>Max Concurrent Requests = Available Memory / KV Cache per Request</code>
             </div>
-            
+
             <h4>Step-by-Step Breakdown:</h4>
-            
+
             <div class="step">
                 <strong>1. Total VRAM Available</strong>
                 <code>Total VRAM = Number of GPUs × VRAM per GPU</code>
                 <p>Example: 2 × 24GB = 48GB total</p>
             </div>
-            
+
             <div class="step">
                 <strong>2. Model Memory (Adjusted for Quantization)</strong>
                 <code>Adjusted Model Memory = Base Model Memory × Quantization Factor</code>
                 <p>Example: 14GB (7B model) × 0.5 (INT4) = 7GB</p>
                 <p>The model weights are loaded once and stay in memory.</p>
             </div>
-            
+
             <div class="step">
                 <strong>3. KV Cache per Request</strong>
                 <code>KV Cache = (Context Length × Adjusted Model Memory × KV Overhead) / 1000</code>
                 <p>Example: (8192 × 7GB × 0.2) / 1000 = 11.47GB per request</p>
                 <p>This memory is needed for each active request's attention cache.</p>
             </div>
-            
+
             <div class="step">
                 <strong>4. Available Memory for Inference</strong>
                 <code>Available = Total VRAM - System Overhead - Model Memory</code>
                 <p>Example: 48GB - 2GB - 7GB = 39GB</p>
                 <p>This is what's left for KV caches after loading the model.</p>
             </div>
-            
+
             <div class="step">
                 <strong>5. Maximum Concurrent Requests</strong>
                 <code>Max Requests = Available Memory / KV Cache per Request</code>
                 <p>Example: 39GB / 11.47GB = 3.4 requests</p>
             </div>
-            
+
             <h4>What the Results Mean:</h4>
             <ul>
-                <li><strong>&lt; 1 request:</strong> Can't handle full context length, need smaller context or better GPU</li>
+                <li><strong>&lt; 1 request:</strong> Can't handle full context length, need smaller context or better
+                    GPU</li>
                 <li><strong>1-2 requests:</strong> Basic serving capability, suitable for personal use</li>
                 <li><strong>3-5 requests:</strong> Good for small-scale deployment</li>
                 <li><strong>10+ requests:</strong> Production-ready for moderate traffic</li>
             </ul>
-            
+
             <h4>Mixture-of-Experts (MoE) Models:</h4>
             <div class="step">
                 <strong>Special Handling for MoE Models</strong>
                 <p>MoE models (like Mixtral, DeepSeek V3/R1, Qwen3 MoE, Kimi K2, GLM-4.5) work differently:</p>
                 <ul>
-                    <li><strong>Total Parameters:</strong> The full model size (e.g., Mixtral 8x7B = 56B total parameters)</li>
-                    <li><strong>Active Parameters:</strong> Only a subset of experts are used per token (e.g., ~14B active)</li>
-                    <li><strong>Memory Calculation:</strong> We automatically use <em>active memory</em> for these models</li>
-                    <li><strong>Why this matters:</strong> You only need RAM for active experts, not the entire model</li>
+                    <li><strong>Total Parameters:</strong> The full model size (e.g., Mixtral 8x7B = 56B total
+                        parameters)</li>
+                    <li><strong>Active Parameters:</strong> Only a subset of experts are used per token (e.g., ~14B
+                        active)</li>
+                    <li><strong>Memory Calculation:</strong> We automatically use <em>active memory</em> for these
+                        models</li>
+                    <li><strong>Why this matters:</strong> You only need RAM for active experts, not the entire model
+                    </li>
                 </ul>
-                <p><strong>Example:</strong> Mixtral 8x7B shows "~94GB total, ~16GB active" - we calculate using 16GB</p>
+                <p><strong>Example:</strong> Mixtral 8x7B shows "~94GB total, ~16GB active" - we calculate using 16GB
+                </p>
             </div>
-            
+
             <h4>Important Notes:</h4>
             <ul>
                 <li>This is a rough estimate - actual usage varies by model architecture</li>
-                <li><strong>Assumes worst-case scenario:</strong> All requests use the full context window. In reality, most requests use much less, so you may handle more concurrent requests</li>
+                <li><strong>Assumes worst-case scenario:</strong> All requests use the full context window. In reality,
+                    most requests use much less, so you may handle more concurrent requests</li>
                 <li>KV cache grows linearly with actual tokens used, not maximum context</li>
                 <li>Different attention mechanisms (MHA, MQA, GQA) affect memory usage</li>
                 <li>Framework overhead and memory fragmentation can impact real-world performance</li>
                 <li>Dynamic batching and memory management can improve real-world throughput</li>
-                <li><strong>MoE models:</strong> Memory requirements can vary based on routing algorithms and expert utilization patterns</li>
+                <li><strong>MoE models:</strong> Memory requirements can vary based on routing algorithms and expert
+                    utilization patterns</li>
             </ul>
         </div>
-        
+
         <div class="share-dialog-buttons">
             <button onclick="closeExplanationDialog()">✖ Close</button>
         </div>
     </div>
-    
+
     <div class="performance-explanation-dialog" id="performanceExplanationDialog">
         <h3>⚡ How GPU Performance is Estimated</h3>
-        
+
         <div class="explanation-content">
             <h4>The Formula:</h4>
             <div class="formula-box">
                 <code>Tokens/sec = (Memory Bandwidth / Model Size) × Efficiency × Quantization Boost × Context Impact</code>
             </div>
-            
+
             <h4>Key Factors:</h4>
-            
+
             <div class="step">
                 <strong>1. Memory Bandwidth</strong>
-                <p>GPU memory bandwidth is the primary bottleneck for LLM inference. Higher bandwidth = faster token generation.</p>
+                <p>GPU memory bandwidth is the primary bottleneck for LLM inference. Higher bandwidth = faster token
+                    generation.</p>
                 <ul>
                     <li>RTX 4090: 1 TB/s</li>
                     <li>A100: 1.6-2 TB/s</li>
                     <li>H100: 3 TB/s</li>
                 </ul>
             </div>
-            
+
             <div class="step">
                 <strong>2. Model Size Efficiency</strong>
                 <p>Smaller models achieve better utilization of memory bandwidth:</p>
@@ -210,7 +230,7 @@
                     <li>70B+ models: ~30% efficiency</li>
                 </ul>
             </div>
-            
+
             <div class="step">
                 <strong>3. Quantization Speed Boost</strong>
                 <p>Lower precision allows faster computation and memory access:</p>
@@ -221,7 +241,7 @@
                     <li>FP16: 1.0× (baseline)</li>
                 </ul>
             </div>
-            
+
             <div class="step">
                 <strong>4. Context Length Impact</strong>
                 <p>Longer contexts require more memory operations:</p>
@@ -231,7 +251,7 @@
                     <li>32-128K tokens: 30% speed</li>
                 </ul>
             </div>
-            
+
             <div class="step">
                 <strong>5. Multi-GPU Scaling</strong>
                 <p>Multiple GPUs don't scale perfectly due to communication overhead:</p>
@@ -241,16 +261,17 @@
                     <li>8 GPUs: ~65% scaling efficiency</li>
                 </ul>
             </div>
-            
+
             <h4>Important Considerations:</h4>
             <ul>
                 <li><strong>Framework matters:</strong> vLLM, TGI, and Ollama have different optimization levels</li>
                 <li><strong>Batch size affects throughput:</strong> Larger batches improve GPU utilization</li>
                 <li><strong>First token is slower:</strong> Initial prompt processing takes longer than generation</li>
-                <li><strong>Real-world variance:</strong> Actual performance varies ±20% based on specific configurations</li>
+                <li><strong>Real-world variance:</strong> Actual performance varies ±20% based on specific
+                    configurations</li>
                 <li><strong>Professional GPUs:</strong> A100/H100 have better memory subsystems than consumer cards</li>
             </ul>
-            
+
             <h4>Performance Ratings:</h4>
             <ul>
                 <li>🟢 <strong>Excellent (>100 tok/s):</strong> Real-time conversation, instant responses</li>
@@ -260,91 +281,74 @@
                 <li>🔴 <strong>Very Slow (<10 tok/s):</strong> Long waits, consider optimization</li>
             </ul>
         </div>
-        
+
         <div class="share-dialog-buttons">
             <button onclick="closePerformanceExplanation()">✖ Close</button>
         </div>
     </div>
-    
+
     <div class="container mt-24">
-        
-        
-        
+
+
+
         <div class="calculator-grid">
             <div class="section card">
-        <h2>› Hardware Configuration</h2>
-                
+                <h2>› Hardware Configuration</h2>
                 <div class="form-group accent-box">
-        <label for="gpu-type" class="field-title">GPU Model:</label>
+                    <label for="gpu-type" class="field-title">GPU Model:</label>
                     <select id="gpu-type" onchange="updateGPUSpecs();">
                         <option value="">Select GPU...</option>
-                        <optgroup label="NVIDIA RTX 40 Series">
-                            <option value="rtx4090" data-vram="24">RTX 4090 (24GB VRAM)</option>
-                            <option value="rtx4080" data-vram="16">RTX 4080 (16GB VRAM)</option>
-                            <option value="rtx4070ti" data-vram="12">RTX 4070 Ti (12GB VRAM)</option>
-                            <option value="rtx4070" data-vram="12">RTX 4070 (12GB VRAM)</option>
-                            <option value="rtx4060ti" data-vram="16">RTX 4060 Ti 16GB (16GB VRAM)</option>
-                            <option value="rtx4060ti8" data-vram="8">RTX 4060 Ti 8GB (8GB VRAM)</option>
-                        </optgroup>
-                        <optgroup label="NVIDIA RTX 30 Series">
-                            <option value="rtx3090ti" data-vram="24">RTX 3090 Ti (24GB VRAM)</option>
-                            <option value="rtx3090" data-vram="24">RTX 3090 (24GB VRAM)</option>
-                            <option value="rtx3080ti" data-vram="12">RTX 3080 Ti (12GB VRAM)</option>
-                            <option value="rtx3080" data-vram="10">RTX 3080 (10GB VRAM)</option>
-                        </optgroup>
                         <optgroup label="NVIDIA Professional">
                             <option value="a100" data-vram="40">A100 40GB (40GB VRAM)</option>
                             <option value="a100-80" data-vram="80">A100 80GB (80GB VRAM)</option>
                             <option value="h100" data-vram="80">H100 (80GB VRAM)</option>
-                            <option value="v100" data-vram="32">V100 32GB (32GB VRAM)</option>
-                            <option value="rtx6000" data-vram="48">RTX 6000 Ada (48GB VRAM)</option>
-                        </optgroup>
-                        <optgroup label="AMD Radeon">
-                            <option value="rx7900xtx" data-vram="24">RX 7900 XTX (24GB VRAM)</option>
-                            <option value="rx7900xt" data-vram="20">RX 7900 XT (20GB VRAM)</option>
                         </optgroup>
                     </select>
                 </div>
-                
+
                 <div class="form-group accent-box">
-        <label for="gpu-count" class="field-title">Number of GPUs:</label>
+                    <label for="gpu-count" class="field-title">Number of GPUs:</label>
                     <input type="number" id="gpu-count" min="1" max="8" value="1" oninput="calculate();">
                 </div>
-                
+
                 <div class="form-group accent-box">
-        <label for="vram-per-gpu" class="field-title">VRAM per GPU (GB):</label>
+                    <label for="vram-per-gpu" class="field-title">VRAM per GPU (GB):</label>
                     <input type="number" id="vram-per-gpu" min="4" max="128" value="24" readonly>
                 </div>
-                
+
                 <div class="form-group accent-box">
-        <label for="system-overhead" class="field-title">System Overhead (GB):</label>
-                    <input type="number" id="system-overhead" min="0" max="8" value="2" step="0.5" oninput="calculate();">
+                    <label for="system-overhead" class="field-title">System Overhead (GB):</label>
+                    <input type="number" id="system-overhead" min="0" max="8" value="2" step="0.5"
+                        oninput="calculate();">
                 </div>
             </div>
-            
+
             <div class="section card">
-        <h2>› Model Configuration</h2>
-                
+                <h2>› Model Configuration</h2>
+
                 <div class="form-group radio-group accent-box">
                     <label class="radio-group-label">Model Input Method:</label>
                     <div class="radio-options">
                         <label class="radio-option">
-                            <input type="radio" name="model-input-type" value="preset" checked onchange="updateModelInputMethod()"> 
+                            <input type="radio" name="model-input-type" value="preset" checked
+                                onchange="updateModelInputMethod()">
                             <span>Common Model</span>
                         </label>
                         <label class="radio-option">
-                            <input type="radio" name="model-input-type" value="parameters" onchange="updateModelInputMethod()"> 
+                            <input type="radio" name="model-input-type" value="parameters"
+                                onchange="updateModelInputMethod()">
                             <span>Parameters</span>
                         </label>
                         <label class="radio-option">
-                            <input type="radio" name="model-input-type" value="memory" onchange="updateModelInputMethod()"> 
+                            <input type="radio" name="model-input-type" value="memory"
+                                onchange="updateModelInputMethod()">
                             <span>Memory</span>
                         </label>
                     </div>
                 </div>
-                
+
                 <div class="form-group accent-box" id="model-preset-group">
-        <label for="model-preset" class="field-title">Select Model:</label>
+                    <label for="model-preset" class="field-title">Select Model:</label>
                     <select id="model-preset" onchange="updateModelSelection()">
                         <optgroup label="Meta Llama">
                             <option value="7" data-memory="14" data-quant="1.0">Llama 3 8B (~14GB)</option>
@@ -352,25 +356,21 @@
                             <option value="70" data-memory="140" data-quant="1.0">Llama 3.1 70B (~140GB)</option>
                             <option value="405" data-memory="810" data-quant="0.5">Llama 3.1 405B (~810GB)</option>
                         </optgroup>
-                        <optgroup label="Alibaba Qwen">
-                            <option value="1.8" data-memory="3.6" data-quant="1.0">Qwen 2B (~3.6GB)</option>
-                            <option value="7" data-memory="14" data-quant="1.0">Qwen 7B (~14GB)</option>
-                            <option value="14" data-memory="28" data-quant="1.0">Qwen 14B (~28GB)</option>
-                            <option value="32" data-memory="64" data-quant="0.5">Qwen 32B (~64GB)</option>
-                            <option value="72" data-memory="144" data-quant="0.5">Qwen 72B (~144GB)</option>
-                            <option value="110" data-memory="220" data-quant="0.5">Qwen 110B (~220GB)</option>
-                        </optgroup>
                         <optgroup label="Alibaba Qwen 3 (2025)">
                             <option value="4" data-memory="8" data-quant="1.0">Qwen3 4B (~8GB)</option>
                             <option value="8" data-memory="16" data-quant="1.0">Qwen3 8B (~16GB)</option>
                             <option value="14" data-memory="28" data-quant="1.0">Qwen3 14B (~28GB)</option>
                             <option value="32" data-memory="64" data-quant="1.0">Qwen3 32B (~64GB)</option>
-                            <option value="3" data-memory="60" data-active-memory="6" data-quant="1.0">Qwen3 30B-A3B MoE (~60GB total, ~6GB active)</option>
-                            <option value="22" data-memory="470" data-active-memory="44" data-quant="0.5">Qwen3 235B-A22B MoE (~470GB total, ~44GB active)</option>
+                            <option value="3" data-memory="60" data-active-memory="6" data-quant="1.0">Qwen3 30B-A3B MoE
+                                (~60GB total, ~6GB active)</option>
+                            <option value="22" data-memory="470" data-active-memory="44" data-quant="0.5">Qwen3
+                                235B-A22B MoE (~470GB total, ~44GB active)</option>
                         </optgroup>
                         <optgroup label="Moonshot AI Kimi (2025)">
-                            <option value="32" data-memory="2000" data-active-memory="64" data-quant="0.5">Kimi K2 Base 1T (~2000GB total, ~64GB active)</option>
-                            <option value="32" data-memory="2000" data-active-memory="64" data-quant="0.5">Kimi K2 Instruct 1T (~2000GB total, ~64GB active)</option>
+                            <option value="32" data-memory="2000" data-active-memory="64" data-quant="0.5">Kimi K2 Base
+                                1T (~2000GB total, ~64GB active)</option>
+                            <option value="32" data-memory="2000" data-active-memory="64" data-quant="0.5">Kimi K2
+                                Instruct 1T (~2000GB total, ~64GB active)</option>
                         </optgroup>
                         <optgroup label="Qwen Coder">
                             <option value="1.5" data-memory="3" data-quant="1.0">Qwen-Coder 1.5B (~3GB)</option>
@@ -381,13 +381,20 @@
                             <option value="7" data-memory="14" data-quant="1.0">DeepSeek 7B (~14GB)</option>
                             <option value="16" data-memory="32" data-quant="1.0">DeepSeek 16B (~32GB)</option>
                             <option value="67" data-memory="134" data-quant="0.5">DeepSeek 67B (~134GB)</option>
-                            <option value="37" data-memory="1342" data-active-memory="74" data-quant="0.5">DeepSeek V3 671B (~1342GB total, ~74GB active)</option>
-                            <option value="37" data-memory="1342" data-active-memory="74" data-quant="0.5">DeepSeek V3.1 671B (~1342GB total, ~74GB active)</option>
-                            <option value="21" data-memory="472" data-active-memory="42" data-quant="0.5">DeepSeek R1 236B (~472GB total, ~42GB active)</option>
-                            <option value="1.5" data-memory="3" data-quant="1.0">DeepSeek R1 1.5B Distilled (~3GB)</option>
-                            <option value="7" data-memory="14" data-quant="1.0">DeepSeek R1 7B Distilled (~14GB)</option>
-                            <option value="32" data-memory="64" data-quant="1.0">DeepSeek R1 32B Distilled (~64GB)</option>
-                            <option value="70" data-memory="140" data-quant="0.5">DeepSeek R1 70B Distilled (~140GB)</option>
+                            <option value="37" data-memory="1342" data-active-memory="74" data-quant="0.5">DeepSeek V3
+                                671B (~1342GB total, ~74GB active)</option>
+                            <option value="37" data-memory="1342" data-active-memory="74" data-quant="0.5">DeepSeek V3.1
+                                671B (~1342GB total, ~74GB active)</option>
+                            <option value="21" data-memory="472" data-active-memory="42" data-quant="0.5">DeepSeek R1
+                                236B (~472GB total, ~42GB active)</option>
+                            <option value="1.5" data-memory="3" data-quant="1.0">DeepSeek R1 1.5B Distilled (~3GB)
+                            </option>
+                            <option value="7" data-memory="14" data-quant="1.0">DeepSeek R1 7B Distilled (~14GB)
+                            </option>
+                            <option value="32" data-memory="64" data-quant="1.0">DeepSeek R1 32B Distilled (~64GB)
+                            </option>
+                            <option value="70" data-memory="140" data-quant="0.5">DeepSeek R1 70B Distilled (~140GB)
+                            </option>
                         </optgroup>
                         <optgroup label="Mistral">
                             <option value="7" data-memory="14" data-quant="1.0">Mistral 7B (~14GB)</option>
@@ -396,8 +403,10 @@
                             <option value="123" data-memory="246" data-quant="0.5">Mistral-Large 123B (~246GB)</option>
                         </optgroup>
                         <optgroup label="Mixtral">
-                            <option value="8" data-memory="94" data-active-memory="16" data-quant="0.5">Mixtral 8x7B (~94GB total, ~16GB active)</option>
-                            <option value="8" data-memory="282" data-active-memory="45" data-quant="0.5">Mixtral 8x22B (~282GB total, ~45GB active)</option>
+                            <option value="8" data-memory="94" data-active-memory="16" data-quant="0.5">Mixtral 8x7B
+                                (~94GB total, ~16GB active)</option>
+                            <option value="8" data-memory="282" data-active-memory="45" data-quant="0.5">Mixtral 8x22B
+                                (~282GB total, ~45GB active)</option>
                         </optgroup>
                         <optgroup label="Mistral Codestral">
                             <option value="22" data-memory="44" data-quant="0.5">Codestral 22B (~44GB)</option>
@@ -405,8 +414,10 @@
                             <option value="100" data-memory="200" data-quant="0.5">Codestral 25.08 (~200GB)</option>
                         </optgroup>
                         <optgroup label="OpenAI GPT">
-                            <option value="20.9" data-memory="42" data-quant="0.3">GPT-OSS 20B (~42GB FP16, ~16GB MXFP4)</option>
-                            <option value="116.8" data-memory="234" data-quant="0.3">GPT-OSS 120B (~234GB FP16, ~61GB MXFP4)</option>
+                            <option value="20.9" data-memory="42" data-quant="0.3">GPT-OSS 20B (~42GB FP16, ~16GB MXFP4)
+                            </option>
+                            <option value="116.8" data-memory="234" data-quant="0.3">GPT-OSS 120B (~234GB FP16, ~61GB
+                                MXFP4)</option>
                             <option value="6" data-memory="12" data-quant="1.0">GPT-J 6B (~12GB)</option>
                             <option value="2.7" data-memory="5.4" data-quant="1.0">GPT-Neo 2.7B (~5.4GB)</option>
                             <option value="20" data-memory="40" data-quant="0.5">GPT-NeoX 20B (~40GB)</option>
@@ -416,13 +427,10 @@
                             <option value="6.2" data-memory="12" data-quant="1.0">ChatGLM2-6B (~12GB)</option>
                             <option value="9" data-memory="18" data-quant="1.0">GLM-4-9B (~18GB)</option>
                             <option value="32" data-memory="64" data-quant="1.0">GLM-4-32B (~64GB)</option>
-                            <option value="12" data-memory="106" data-active-memory="24" data-quant="0.5">GLM-4.5-Air MoE (~106GB total, ~24GB active)</option>
-                            <option value="32" data-memory="355" data-active-memory="64" data-quant="0.5">GLM-4.5 MoE (~355GB total, ~64GB active)</option>
-                        </optgroup>
-                        <optgroup label="Google Gemma">
-                            <option value="2" data-memory="4" data-quant="1.0">Gemma 2B (~4GB)</option>
-                            <option value="7" data-memory="14" data-quant="1.0">Gemma 7B (~14GB)</option>
-                            <option value="27" data-memory="54" data-quant="0.5">Gemma-2 27B (~54GB)</option>
+                            <option value="12" data-memory="106" data-active-memory="24" data-quant="0.5">GLM-4.5-Air
+                                MoE (~106GB total, ~24GB active)</option>
+                            <option value="32" data-memory="355" data-active-memory="64" data-quant="0.5">GLM-4.5 MoE
+                                (~355GB total, ~64GB active)</option>
                         </optgroup>
                         <optgroup label="Google Gemma 3 (2025)">
                             <option value="0.27" data-memory="0.5" data-quant="1.0">Gemma 3 270M (~0.5GB)</option>
@@ -445,21 +453,22 @@
                         </optgroup>
                     </select>
                 </div>
-                
+
                 <div class="form-group hidden" id="model-parameters-group">
                     <label for="model-parameters">Model Parameters (B):</label>
-                    <input type="number" id="model-parameters" min="0.1" max="1000" step="0.1" value="7" oninput="calculate();">
+                    <input type="number" id="model-parameters" min="0.1" max="1000" step="0.1" value="7"
+                        oninput="calculate();">
                     <small class="help-text">Enter billions of parameters (e.g., 7 for 7B model)</small>
                 </div>
-                
+
                 <div class="form-group hidden" id="model-memory-group">
                     <label for="model-memory-input">Model Memory (GB):</label>
                     <input type="number" id="model-memory-input" min="1" max="2000" value="14" oninput="calculate();">
                     <small class="help-text">Enter total memory required in GB</small>
                 </div>
-                
+
                 <div class="form-group accent-box">
-        <label for="quantization" class="field-title">Quantization:</label>
+                    <label for="quantization" class="field-title">Quantization:</label>
                     <select id="quantization" onchange="calculate();">
                         <option value="1.0">FP16/BF16 (Full Precision)</option>
                         <option value="0.75">INT8 (~25% reduction)</option>
@@ -468,23 +477,25 @@
                         <option value="0.25">Extreme Quant (~75% reduction)</option>
                     </select>
                 </div>
-                
+
                 <div class="form-group radio-group accent-box">
                     <label class="radio-group-label">Context Input Method:</label>
                     <div class="radio-options">
                         <label class="radio-option">
-                            <input type="radio" name="context-input-type" value="preset" checked onchange="updateContextInputMethod()"> 
+                            <input type="radio" name="context-input-type" value="preset" checked
+                                onchange="updateContextInputMethod()">
                             <span>Preset</span>
                         </label>
                         <label class="radio-option">
-                            <input type="radio" name="context-input-type" value="custom" onchange="updateContextInputMethod()"> 
+                            <input type="radio" name="context-input-type" value="custom"
+                                onchange="updateContextInputMethod()">
                             <span>Custom</span>
                         </label>
                     </div>
                 </div>
-                
+
                 <div class="form-group accent-box" id="context-preset-group">
-        <label for="context-preset" class="field-title">Context Length:</label>
+                    <label for="context-preset" class="field-title">Context Length:</label>
                     <select id="context-preset" onchange="calculate();">
                         <option value="1024">1K tokens</option>
                         <option value="2048">2K tokens</option>
@@ -499,91 +510,94 @@
                         <option value="1048576">1M tokens</option>
                     </select>
                 </div>
-                
+
                 <div class="form-group hidden" id="context-custom-group">
                     <label for="context-custom">Context Length (tokens):</label>
-                    <input type="number" id="context-custom" min="128" max="2000000" value="4096" oninput="calculate();">
+                    <input type="number" id="context-custom" min="128" max="2000000" value="4096"
+                        oninput="calculate();">
                     <small class="help-text">Enter number of tokens</small>
                 </div>
-                
+
                 <div class="form-group accent-box">
-        <label for="kv-cache-overhead" class="field-title">KV Cache Overhead (%):</label>
-                    <input type="number" id="kv-cache-overhead" min="10" max="50" value="20" step="5" oninput="calculate();">
+                    <label for="kv-cache-overhead" class="field-title">KV Cache Overhead (%):</label>
+                    <input type="number" id="kv-cache-overhead" min="10" max="50" value="20" step="5"
+                        oninput="calculate();">
                     <small class="help-text">Use arrow keys to adjust</small>
                 </div>
             </div>
         </div>
-        
-            
-        
+
+
+
         <div id="results" class="results hidden">
             <div class="results-title">
                 <span class="panel-title">Calculation Results</span>
-                <button type="button" class="btn-link" onclick="showHowCalculated(event)">How is this calculated?</button>
+                <button type="button" class="btn-link" onclick="showHowCalculated(event)">How is this
+                    calculated?</button>
             </div>
-            
+
             <div class="result-item highlight-result">
                 <span class="result-label">Max Concurrent Requests:</span>
                 <span class="result-value" id="concurrent-requests">-</span>
             </div>
-            
+
             <div class="result-item">
                 <span class="result-label">Total VRAM Available:</span>
                 <span class="result-value" id="total-vram">-</span>
             </div>
-            
+
             <div class="result-item">
                 <span class="result-label">Model Memory Required:</span>
                 <span class="result-value" id="model-memory">-</span>
             </div>
-            
+
             <div class="result-item">
                 <span class="result-label">KV Cache per Request:</span>
                 <span class="result-value" id="kv-cache-memory">-</span>
             </div>
-            
+
             <div class="result-item">
                 <span class="result-label">Available for Inference:</span>
                 <span class="result-value" id="available-memory">-</span>
             </div>
-            
+
             <div class="result-item">
                 <span class="result-label">Effective Context Window:</span>
                 <span class="result-value" id="effective-context">-</span>
             </div>
-            
+
             <div id="warnings"></div>
-            
-            
-            
+
+
+
             <!-- Performance Estimation Section -->
-            <div id="performance-section" class="performance-section" style="display: none;">
+            <div id="performance-section" class="performance-section accent-box" style="display: none;">
                 <div class="performance-title">
-                    ═══ PERFORMANCE ESTIMATION ═══
-                    <a href="#" class="how-calculated-link" onclick="showPerformanceExplanation(event)">How is this calculated?</a>
+                    <span class="panel-title">› Performance Estimation</span>
+                    <a href="#" class="btn-link" onclick="showPerformanceExplanation(event)">How is this calculated?</a>
                 </div>
-                
+
                 <div class="performance-result">
                     <div class="performance-metric">
                         <span class="metric-label">Expected Speed:</span>
                         <span class="metric-value" id="tokens-per-second">-</span>
                     </div>
-                    
+
                     <div class="performance-metric">
                         <span class="metric-label">Time for 100 tokens:</span>
                         <span class="metric-value" id="generation-time">-</span>
                     </div>
-                    
+
                     <div class="performance-metric">
                         <span class="metric-label">Performance Rating:</span>
                         <span class="metric-value" id="performance-rating">-</span>
                     </div>
                 </div>
-                
+
                 <div id="performance-notes" class="performance-notes"></div>
             </div>
         </div>
-        
+
         <div class="info-box">
             <div class="info-title">› CALCULATION NOTES</div>
             • Model memory includes weights and activation overhead<br>
@@ -593,41 +607,60 @@
             • Professional GPUs (A100, H100) have better memory bandwidth<br>
             • Multiple GPUs require tensor parallelism for large models
         </div>
-        
+
         <footer class="footer">
             <div class="footer-content">
                 <div class="copyright">
                     Copyright © 2025 Eran Sandler
                 </div>
                 <div class="social-links">
-                    <a href="https://eran.sandler.co.il" target="_blank" rel="noopener" title="Website" class="social-link">
+                    <a href="https://eran.sandler.co.il" target="_blank" rel="noopener" title="Website"
+                        class="social-link">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" fill="currentColor"/>
+                            <path
+                                d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"
+                                fill="currentColor" />
                         </svg>
                     </a>
-                    <a href="https://x.com/erans" target="_blank" rel="noopener" title="X (Twitter)" class="social-link">
+                    <a href="https://x.com/erans" target="_blank" rel="noopener" title="X (Twitter)"
+                        class="social-link">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" fill="currentColor"/>
+                            <path
+                                d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"
+                                fill="currentColor" />
                         </svg>
                     </a>
-                    <a href="https://bsky.app/profile/esandler.bsky.social" target="_blank" rel="noopener" title="BlueSky" class="social-link">
+                    <a href="https://bsky.app/profile/esandler.bsky.social" target="_blank" rel="noopener"
+                        title="BlueSky" class="social-link">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8Z" fill="currentColor"/>
+                            <path
+                                d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 0 1-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8Z"
+                                fill="currentColor" />
                         </svg>
                     </a>
-                    <a href="https://github.com/erans/selfhostllm" target="_blank" rel="noopener" title="GitHub" class="social-link">
+                    <a href="https://github.com/erans/selfhostllm" target="_blank" rel="noopener" title="GitHub"
+                        class="social-link">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z" fill="currentColor"/>
+                            <path
+                                d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z"
+                                fill="currentColor" />
                         </svg>
                     </a>
-                    <a href="https://linkedin.com/in/erans" target="_blank" rel="noopener" title="LinkedIn" class="social-link">
+                    <a href="https://linkedin.com/in/erans" target="_blank" rel="noopener" title="LinkedIn"
+                        class="social-link">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" fill="currentColor"/>
+                            <path
+                                d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"
+                                fill="currentColor" />
                         </svg>
                     </a>
-                    <a href="https://github.com/erans/selfhostllm" target="_blank" rel="noopener" class="github-fork-link">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right: 5px;">
-                            <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z" fill="currentColor"/>
+                    <a href="https://github.com/erans/selfhostllm" target="_blank" rel="noopener"
+                        class="github-fork-link">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                            style="margin-right: 5px;">
+                            <path
+                                d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z"
+                                fill="currentColor" />
                         </svg>
                         Fork on GitHub
                     </a>
@@ -662,4 +695,5 @@
 
     <script src="selfhost-llm.js"></script>
 </body>
+
 </html>

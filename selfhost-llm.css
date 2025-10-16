@@ -278,6 +278,60 @@ input[type="range"] {
   color: var(--color-text-muted);
   font-size: 0.875rem;
 }
+
+/* ========== PERFORMANCE SECTION ========== */
+.performance-section { /* visuals come from .accent-box */ }
+.performance-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.performance-result {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+.performance-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+.metric-label {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+.metric-value {
+  color: var(--color-accent);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.performance-notes {
+  margin-top: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  color: var(--color-text);
+}
+.performance-notes h4 {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 0.25rem;
+}
+@media (min-width: 768px) {
+  .performance-result { grid-template-columns: repeat(2, 1fr); }
+}
 .result-value {
   color: var(--color-accent);
   font-weight: 600;
@@ -307,8 +361,18 @@ input[type="range"] {
   color: var(--color-error);
   padding: 0.75rem;
   border-radius: var(--radius);
-  text-align: center;
+  text-align: left;
   font-size: 0.875rem;
+}
+/* Stronger inner structure for warning panel */
+#warnings .warning .warning-title {
+  color: var(--color-text);
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+#warnings .warning .warning-actions {
+  color: var(--color-text-muted);
+  line-height: 1.5;
 }
 
 /* ========== OVERLAY & SHARE DIALOG ========== */
@@ -354,7 +418,6 @@ input[type="range"] {
   margin-bottom: 0.25rem;
 }
 /* Hide non-essential blocks on calculator page */
-#warnings { display: none; }
 .info-box { display: none; }
 
 /* ========== FOOTER ========== */
