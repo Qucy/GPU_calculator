@@ -468,8 +468,8 @@ input[type="range"] {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 1.5rem;
-  max-width: 760px;
-  width: 92%;
+  /* Responsive width: scale with viewport while keeping readability */
+  width: clamp(320px, 75vw, 1000px);
   box-shadow: var(--shadow);
   max-height: 85vh;
   overflow-y: auto;
@@ -506,6 +506,14 @@ input[type="range"] {
   }
   .footer .social {
     flex-wrap: wrap;
+  }
+}
+
+/* Mobile: allow dialog to breathe across the viewport */
+@media (max-width: 640px) {
+  .explanation-dialog,
+  .performance-explanation-dialog {
+    width: 94vw;
   }
 }
 
