@@ -298,6 +298,28 @@ async function augmentCalculatorGPUOptionsFromCatalog() {
         const gpus = Array.isArray(data?.gpus) ? data.gpus : (Array.isArray(data) ? data : []);
         if (!gpus || gpus.length === 0) return;
 
+        // Batch DOM updates per optgroup to reduce reflows
+        const groupElements = new Map();
+        const fragments = new Map();
+        const getGroup = (label) => {
+            let g = groupElements.get(label);
+            if (!g) {
+                g = ensureGroup(label);
+                groupElements.set(label, g);
+            }
+            return g;
+        };
+        const getFragment = (label) => {
+            let f = fragments.get(label);
+            if (!f) {
+                f = document.createDocumentFragment();
+                fragments.set(label, f);
+            }
+            // Ensure the group element exists ahead of time
+            getGroup(label);
+            return f;
+        };
+
         gpus.forEach(gpu => {
             const base = baseName(gpu.name || '');
             if (!base) return;
@@ -307,7 +329,6 @@ async function augmentCalculatorGPUOptionsFromCatalog() {
             const memGB = parseMemoryGB(gpu.memory_gb);
             if (!memGB || isNaN(memGB) || memGB <= 0) return;
             const groupLabel = groupLabelFor(gpu);
-            const group = ensureGroup(groupLabel);
             const opt = document.createElement('option');
             opt.value = newSlug;
             opt.setAttribute('data-vram', String(memGB));
@@ -325,7 +346,14 @@ async function augmentCalculatorGPUOptionsFromCatalog() {
                 opt.setAttribute('data-bandwidth', String(gbps));
             }
             opt.textContent = `${base} (${memGB}GB VRAM)`;
-            group.appendChild(opt);
+            const frag = getFragment(groupLabel);
+            frag.appendChild(opt);
+        });
+
+        // Flush fragments to their optgroups in one pass
+        fragments.forEach((frag, label) => {
+            const group = getGroup(label);
+            group.appendChild(frag);
         });
     } catch (e) {
         // Silently ignore catalog errors to avoid disrupting existing flow
