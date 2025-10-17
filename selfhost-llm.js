@@ -431,7 +431,20 @@ function calculate() {
     // Calculate memory requirements
     const totalVRAM = gpuCount * vramPerGpu;
     const adjustedModelMemory = modelMemory * quantization;
-    const kvCachePerRequest = (contextLength * adjustedModelMemory * kvCacheOverhead) / 1000; // Rough estimate
+    
+    // Compute KV cache per request using architecture-driven formula
+    let kvCachePerRequest;
+    const modelSelectForKV = document.getElementById('model-preset');
+    const selectedOptionForKV = modelSelectForKV ? modelSelectForKV.options[modelSelectForKV.selectedIndex] : null;
+    // KV stored typically in fp16/bf16 → 2 bytes/elem regardless of weight quantization
+    const kvBytesPerElem = 2;
+    if (selectedOptionForKV) {
+        kvCachePerRequest = computeKVCacheGB(contextLength, selectedOptionForKV, kvBytesPerElem, kvCacheOverhead);
+    } else {
+        // Fallback if not using preset
+        kvCachePerRequest = computeKVCacheGB(contextLength, { textContent: `${modelMemory/2}B` }, kvBytesPerElem, kvCacheOverhead);
+    }
+
     const availableMemory = totalVRAM - systemOverhead - adjustedModelMemory;
     
     // Calculate concurrent requests
@@ -675,6 +688,15 @@ window.onload = async function() {
     displayAsciiArt();
     // Augment GPU dropdown with any missing catalog entries
     await augmentCalculatorGPUOptionsFromCatalog();
+
+    // Load LLM catalog for architecture details (layers, hidden size)
+    if (typeof loadLLMCatalog === 'function') {
+        try {
+            await loadLLMCatalog();
+        } catch (e) {
+            console.warn('Could not load LLM catalog', e);
+        }
+    }
     
     // First check if we have URL parameters
     if (window.location.search) {
@@ -707,3 +729,79 @@ window.onload = async function() {
         });
     }
 };
+
+// --- LLM Catalog Loading and Lookup ---
+let _llmCatalog = null;
+
+async function loadLLMCatalog() {
+    try {
+        const res = await fetch('data/LLMs.json');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        _llmCatalog = await res.json();
+    } catch (e) {
+        console.warn('Failed to fetch data/LLMs.json:', e);
+        _llmCatalog = null;
+    }
+}
+
+function normalizeModelName(s) {
+    return String(s || '')
+        .toLowerCase()
+        .replace(/\(.*?\)/g, '') // drop parentheticals
+        .replace(/distilled|instruct|base|small|medium|large|chat|oss/gi, '') // drop suffixes
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9\-x]/g, '')
+        .replace(/--+/g, '-')
+        .trim();
+}
+
+function findLLMConfigFromSelectedOption(optionEl) {
+    const label = optionEl.textContent || optionEl.innerText || '';
+    const norm = normalizeModelName(label);
+    if (Array.isArray(_llmCatalog)) {
+        // direct match first
+        const direct = _llmCatalog.find(m => normalizeModelName(m.model_name) === norm);
+        if (direct) return direct;
+        // try contains both ways
+        const contains = _llmCatalog.find(m => {
+            const mn = normalizeModelName(m.model_name);
+            return mn.includes(norm) || norm.includes(mn);
+        });
+        if (contains) return contains;
+    }
+    return null;
+}
+
+function heuristicArchitecture(optionEl) {
+    // Fallback heuristics based on parameter count in label
+    const label = optionEl.textContent || optionEl.innerText || '';
+    const m = label.match(/(\d+(?:\.\d+)?)\s*B/i);
+    const paramB = m ? parseFloat(m[1]) : null;
+
+    // Rough defaults
+    if (!paramB) {
+        return { num_layers: 32, hidden_size: 4096 };
+    }
+    if (paramB <= 4) return { num_layers: 28, hidden_size: 3072 };
+    if (paramB <= 8) return { num_layers: 32, hidden_size: 4096 };
+    if (paramB <= 15) return { num_layers: 40, hidden_size: 4096 };
+    if (paramB <= 35) return { num_layers: 64, hidden_size: 5120 };
+    if (paramB <= 75) return { num_layers: 80, hidden_size: 8192 };
+    if (paramB <= 130) return { num_layers: 88, hidden_size: 12288 };
+    // very large
+    return { num_layers: 60, hidden_size: 7168 };
+}
+
+function computeKVCacheGB(contextLength, optionEl, bytesPerElem, overheadFraction) {
+    const catalog = findLLMConfigFromSelectedOption(optionEl);
+    const arch = catalog ? { num_layers: catalog.num_layers, hidden_size: catalog.hidden_size } : heuristicArchitecture(optionEl);
+    const L = Math.max(1, parseInt(arch.num_layers || 0) || 32);
+    const H = Math.max(1, parseInt(arch.hidden_size || 0) || 4096);
+    const bytesPerElement = bytesPerElem || 2; // fp16/bf16 typical for KV
+    const overhead = Math.max(0, overheadFraction || 0);
+
+    // KV bytes = context_len × L × 2 (K+V) × H × bytes_per_elem
+    const kvBytes = contextLength * L * 2 * H * bytesPerElement;
+    const kvGB = kvBytes / (1024 ** 3);
+    return kvGB * (1 + overhead);
+}

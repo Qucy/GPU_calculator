@@ -124,29 +124,32 @@
 
             <div class="step">
                 <strong>2. Model Memory (Adjusted for Quantization)</strong>
-                <code>Adjusted Model Memory = Base Model Memory × Quantization Factor</code>
-                <p>Example: 14GB (7B model) × 0.5 (INT4) = 7GB</p>
+                <code>Adjusted Model Memory = Base Memory × (bits after ÷ bits before)</code>
+                <p>Per-parameter method: Parameters × Bytes per parameter</p>
+                <p>Example (7B INT4): 14GB (FP16 baseline) × (4 ÷ 16) = <strong>3.5GB</strong></p>
+                <p>Mapping: FP16/BF16 = 2 bytes; FP8/INT8 = 1 byte; INT4/MXFP4 = 0.5 bytes; INT2 = 0.25 bytes.</p>
                 <p>The model weights are loaded once and stay in memory.</p>
             </div>
 
             <div class="step">
                 <strong>3. KV Cache per Request</strong>
-                <code>KV Cache = (Context Length × Adjusted Model Memory × KV Overhead) / 1000</code>
-                <p>Example: (8192 × 7GB × 0.2) / 1000 = 11.47GB per request</p>
+                <code>KV bytes = context_len × L × 2 × H × bytes_per_elem</code>
+                <p>Where: <em>L</em> = transformer layers, <em>H</em> = hidden size, <em>2</em> = key + value, <em>bytes_per_elem</em> ≈ 2 (fp16/bf16).</p>
+                <p>Example (7B, L=32, H=4096, fp16, 8K context): 8192 × 32 × 2 × 4096 × 2 bytes ≈ <strong>4.0GB</strong> raw KV. With 20% overhead → <strong>4.8GB</strong> per request.</p>
                 <p>This memory is needed for each active request's attention cache.</p>
             </div>
 
             <div class="step">
                 <strong>4. Available Memory for Inference</strong>
                 <code>Available = Total VRAM - System Overhead - Model Memory</code>
-                <p>Example: 48GB - 2GB - 7GB = 39GB</p>
+                <p>Example: 48GB - 2GB - 3.5GB = <strong>42.5GB</strong></p>
                 <p>This is what's left for KV caches after loading the model.</p>
             </div>
 
             <div class="step">
                 <strong>5. Maximum Concurrent Requests</strong>
                 <code>Max Requests = Available Memory / KV Cache per Request</code>
-                <p>Example: 39GB / 11.47GB = 3.4 requests</p>
+                <p>Example: 42.5GB / 4.8GB ≈ <strong>8.9</strong> requests</p>
             </div>
 
             <h4>What the Results Mean:</h4>
@@ -203,50 +206,53 @@
             <div class="formula-box">
                 <code>Tokens/sec = (Memory Bandwidth / Model Size) × Efficiency × Quantization Boost × Context Impact</code>
             </div>
+            <p><strong>Verdict:</strong> ⚠️ Heuristic, not physically or computationally accurate.</p>
+            <p><strong>Why:</strong></p>
+            <ul>
+                <li>Token generation speed is not directly proportional to <code>Memory Bandwidth / Model Size</code>.</li>
+                <li>While memory bandwidth is a major bottleneck in large-model inference, compute throughput (FLOPs) and kernel scheduling also limit performance.</li>
+                <li>Actual latency per token depends on matrix–vector multiplication performance, KV-cache access (bandwidth-bound), and framework efficiency (kernel fusion, parallelism).</li>
+            </ul>
+            <p>✅ <strong>Better framing:</strong> Use bandwidth as a dominant factor in memory-bound regimes (e.g., small batch, quantized, or large-context inference). Otherwise, both FLOPs and bandwidth matter. Treat this as a qualitative model.</p>
 
             <h4>Key Factors:</h4>
 
             <div class="step">
                 <strong>1. Memory Bandwidth</strong>
-                <p>GPU memory bandwidth is the primary bottleneck for LLM inference. Higher bandwidth = faster token
-                    generation.</p>
+                <p>GPU memory bandwidth is often the primary bottleneck for LLM inference when compute is underutilized (especially during decoding).</p>
                 <ul>
-                    <li>RTX 4090: 1 TB/s</li>
-                    <li>A100: 1.6-2 TB/s</li>
-                    <li>H100: 3 TB/s</li>
+                    <li>RTX 4090: 1,008 GB/s (typical)</li>
+                    <li>A100 (80GB HBM2e): 2,039 GB/s (upper range)</li>
+                    <li>H100 (80GB HBM3): ~3,350 GB/s</li>
                 </ul>
+                <p>✔ For large transformer inference, bandwidth is a critical limiting factor once compute is underutilized.</p>
             </div>
 
             <div class="step">
                 <strong>2. Model Size Efficiency</strong>
-                <p>Smaller models achieve better utilization of memory bandwidth:</p>
+                <p>Memory bandwidth utilization tends to drop for larger models because of increased layer depth, activation sizes, and less cache reuse; typical efficiency ranges 30–85% depending on model size and inference engine.</p>
+                <p><strong>Notes:</strong></p>
                 <ul>
-                    <li>≤7B models: ~85% efficiency</li>
-                    <li>7-30B models: ~70% efficiency</li>
-                    <li>30-70B models: ~50% efficiency</li>
-                    <li>70B+ models: ~30% efficiency</li>
+                    <li>Smaller models can better fit in cache (L2, HBM, registers) → higher efficiency.</li>
+                    <li>Utilization depends strongly on batch size, sequence length, and kernel fusion—not parameter count alone.</li>
                 </ul>
             </div>
 
             <div class="step">
                 <strong>3. Quantization Speed Boost</strong>
-                <p>Lower precision allows faster computation and memory access:</p>
+                <p>Lower precision primarily saves memory bandwidth and can accelerate GEMM ops when hardware supports low-precision tensor cores. Typical ranges on NVIDIA GPUs:</p>
                 <ul>
-                    <li>INT3: 2.5× faster</li>
-                    <li>INT4: 2.2× faster</li>
-                    <li>INT8: 1.3× faster</li>
-                    <li>FP16: 1.0× (baseline)</li>
+                    <li>INT8: 1.3×–1.5× vs FP16</li>
+                    <li>INT4: 1.6×–2.0× vs FP16 (kernel/framework dependent)</li>
+                    <li>INT3: Experimental (few toolchains; speedups vary)</li>
+                    <li>FP16: 1.0× baseline</li>
                 </ul>
             </div>
 
             <div class="step">
                 <strong>4. Context Length Impact</strong>
-                <p>Longer contexts require more memory operations:</p>
-                <ul>
-                    <li>≤8K tokens: 85% speed</li>
-                    <li>8-32K tokens: 60% speed</li>
-                    <li>32-128K tokens: 30% speed</li>
-                </ul>
+                <p>Throughput declines with longer context windows due to larger KV-cache bandwidth demands; typical degradation is 15–70% as context extends from 8K to 128K tokens.</p>
+                <p><strong>Depends on:</strong> attention implementation (e.g., FlashAttention v1/v2/v3), batch size, and streaming optimizations.</p>
             </div>
 
             <div class="step">
@@ -261,12 +267,11 @@
 
             <h4>Important Considerations:</h4>
             <ul>
-                <li><strong>Framework matters:</strong> vLLM, TGI, and Ollama have different optimization levels</li>
-                <li><strong>Batch size affects throughput:</strong> Larger batches improve GPU utilization</li>
-                <li><strong>First token is slower:</strong> Initial prompt processing takes longer than generation</li>
-                <li><strong>Real-world variance:</strong> Actual performance varies ±20% based on specific
-                    configurations</li>
-                <li><strong>Professional GPUs:</strong> A100/H100 have better memory subsystems than consumer cards</li>
+                <li><strong>Framework matters (vLLM, TGI, Ollama):</strong> They differ in KV-cache management, batching, and fused kernels.</li>
+                <li><strong>Batch size affects throughput:</strong> Larger batches → higher GPU utilization.</li>
+                <li><strong>First token slower:</strong> Prompt prefill cost dominates.</li>
+                <li><strong>Real-world variance:</strong> Throughput varies ±20% due to scheduling, framework, and CUDA version.</li>
+                <li><strong>Professional GPUs:</strong> A100/H100 have better memory subsystems than consumer cards.</li>
             </ul>
 
             <h4>Performance Ratings:</h4>
@@ -467,11 +472,10 @@
                 <div class="form-group accent-box">
                     <label for="quantization" class="field-title">Quantization:</label>
                     <select id="quantization" onchange="calculate();">
-                        <option value="1.0">FP16/BF16 (Full Precision)</option>
-                        <option value="0.75">INT8 (~25% reduction)</option>
-                        <option value="0.5">INT4 (~50% reduction)</option>
-                        <option value="0.3">MXFP4 (~70% reduction)</option>
-                        <option value="0.25">Extreme Quant (~75% reduction)</option>
+                        <option value="1.0">FP16/BF16 (2 bytes/param, 0% reduction)</option>
+                        <option value="0.5">INT8 / FP8 (1 byte/param, 50% reduction)</option>
+                        <option value="0.25">INT4 / MXFP4 (0.5 bytes/param, 75% reduction)</option>
+                        <option value="0.125">INT2 (0.25 bytes/param, 87.5% reduction)</option>
                     </select>
                 </div>
 
