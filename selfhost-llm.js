@@ -401,13 +401,21 @@ function calculate() {
     if (modelInputType === 'preset') {
         const modelSelect = document.getElementById('model-preset');
         const selectedOption = modelSelect.options[modelSelect.selectedIndex];
-        // For MoE models, use active memory if available, otherwise use total memory
-        const activeMemory = selectedOption.getAttribute('data-active-memory');
-        if (activeMemory) {
-            modelMemory = parseFloat(activeMemory);
+        const activeMemoryAttr = selectedOption.getAttribute('data-active-memory');
+        const totalMemoryAttr = selectedOption.getAttribute('data-memory');
+        const isMoE = !!activeMemoryAttr;
+        const offloadingEnabled = !!document.getElementById('moe-offloading') && document.getElementById('moe-offloading').checked;
+        // For VRAM fit: choose active vs total based on offloading toggle
+        if (isMoE) {
+            modelMemory = offloadingEnabled ? parseFloat(activeMemoryAttr) : (parseFloat(totalMemoryAttr) || 14);
         } else {
-            modelMemory = parseFloat(selectedOption.getAttribute('data-memory')) || 14;
+            modelMemory = parseFloat(totalMemoryAttr) || 14;
         }
+        // Cache MoE context for performance and notes
+        window.__isMoESelected = isMoE;
+        window.__moeOffloadingEnabled = offloadingEnabled;
+        window.__moeActiveMemory = activeMemoryAttr ? parseFloat(activeMemoryAttr) : null;
+        window.__moeTotalMemory = totalMemoryAttr ? parseFloat(totalMemoryAttr) : null;
     } else if (modelInputType === 'parameters') {
         const paramCount = parseFloat(document.getElementById('model-parameters').value) || 7;
         modelMemory = paramCount * 2; // Rough estimate: 2GB per billion parameters in FP16
@@ -482,7 +490,19 @@ function calculate() {
     const performanceSection = document.getElementById('performance-section');
     
     if (gpuType && availableMemory >= 0 && performanceSection) {
-        const perf = calculatePerformance(adjustedModelMemory, quantization, contextLength, gpuType, gpuCount);
+        // Align MoE offloading behavior: when ON, use active experts; when OFF, use total
+        let perfModelMemoryBase = modelMemory;
+        if (window.__isMoESelected) {
+            const hasActive = typeof window.__moeActiveMemory === 'number' && !isNaN(window.__moeActiveMemory);
+            const hasTotal = typeof window.__moeTotalMemory === 'number' && !isNaN(window.__moeTotalMemory);
+            if (window.__moeOffloadingEnabled) {
+                perfModelMemoryBase = hasActive ? window.__moeActiveMemory : modelMemory;
+            } else {
+                perfModelMemoryBase = hasTotal ? window.__moeTotalMemory : modelMemory;
+            }
+        }
+        const perfMemoryAdjusted = perfModelMemoryBase * quantization;
+        const perf = calculatePerformance(perfMemoryAdjusted, quantization, contextLength, gpuType, gpuCount);
         
         if (perf) {
             performanceSection.style.display = 'block';
@@ -526,6 +546,17 @@ function calculate() {
             const notesDiv = document.getElementById('performance-notes');
             if (notesDiv) {
                 let notes = [];
+                // MoE mode note at the top
+                if (window.__isMoESelected) {
+                    const hasActive = typeof window.__moeActiveMemory === 'number' && !isNaN(window.__moeActiveMemory);
+                    const hasTotal = typeof window.__moeTotalMemory === 'number' && !isNaN(window.__moeTotalMemory);
+                    const totalGB = hasTotal ? (window.__moeTotalMemory * quantization).toFixed(1) : null;
+                    const activeGB = hasActive ? (window.__moeActiveMemory * quantization).toFixed(1) : null;
+                    const moeLine = window.__moeOffloadingEnabled
+                        ? (activeGB ? `• MoE offloading ON: VRAM and performance use active experts (~${activeGB} GB)` : `• MoE offloading ON: Using active experts for calculations`)
+                        : (totalGB ? `• MoE offloading OFF: VRAM and performance use full model (~${totalGB} GB)` : `• MoE offloading OFF: Using full model size for calculations`);
+                    notes.push(moeLine);
+                }
                 
                 if (tokensPerSecNum < 25) {
                     notes.push('• Consider stronger quantization (INT4) for better speed');
