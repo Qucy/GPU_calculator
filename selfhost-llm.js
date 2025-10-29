@@ -677,6 +677,59 @@ function buildPerformanceScenarioTable() {
     // Limit contexts to the requested set: 8K, 16K, 32K, 64K, 128K
     const contexts = [8192, 16384, 32768, 65536, 131072];
 
+    // Helper: derive full vs active parameter counts (billions)
+    function deriveModelParamsB() {
+        let fullB = null;
+        let activeB = null;
+        const label = (selectedModelOption.textContent || selectedModelOption.innerText || '').trim();
+        // Try catalog first
+        if (typeof findLLMConfigFromSelectedOption === 'function') {
+            const cfg = findLLMConfigFromSelectedOption(selectedModelOption);
+            if (cfg && typeof cfg.parameter_count_billion === 'number') {
+                fullB = Number(cfg.parameter_count_billion);
+                const moe = cfg.moe || {};
+                if (moe.enabled && typeof moe.num_experts === 'number' && typeof moe.active_experts === 'number' && moe.num_experts > 0) {
+                    activeB = fullB * (moe.active_experts / moe.num_experts);
+                }
+            }
+        }
+        // Fallback: parse from label (supports e.g., "235B-A22B" or "1T-A32B")
+        if (fullB == null) {
+            const mB = label.match(/(\d+(?:\.\d+)?)\s*B/i);
+            const mT = label.match(/(\d+(?:\.\d+)?)\s*T/i);
+            if (mT) fullB = Number(mT[1]) * 1000;
+            else if (mB) fullB = Number(mB[1]);
+        }
+        if (activeB == null) {
+            const a = label.match(/-A(\d+(?:\.\d+)?)B/i);
+            if (a) activeB = Number(a[1]);
+        }
+        // If user is in parameters mode, override with user-provided value
+        if (modelInputType === 'parameters') {
+            const mpEl = document.getElementById('model-parameters');
+            const v = mpEl ? parseFloat(mpEl.value) : NaN;
+            if (!isNaN(v)) {
+                fullB = v;
+                activeB = v;
+            }
+        }
+        return { fullB, activeB };
+    }
+
+    const { fullB: modelParamsFullB, activeB: modelParamsActiveB } = deriveModelParamsB();
+
+    const formatB = (n) => {
+        if (n == null || !isFinite(n)) return '';
+        const isInt = Math.abs(n - Math.round(n)) < 1e-9;
+        return isInt ? String(Math.round(n)) : n.toFixed(1);
+    };
+    const paramsDisplay = (() => {
+        const f = formatB(modelParamsFullB);
+        const a = formatB(modelParamsActiveB);
+        if (f && a && f !== a) return `${f} / ${a}`;
+        return f || a || '';
+    })();
+
     // Build rows
     const rows = [];
     baseCounts.forEach(gc => {
@@ -690,6 +743,8 @@ function buildPerformanceScenarioTable() {
             const perf = calculatePerformance(perfMemoryAdjusted, quantization, ctx, gpuType, gc);
             const tpsNum = perf ? Number(perf.tokensPerSecond) : 0;
             const genTimeNum = tpsNum > 0 ? (100 / tpsNum) : Infinity;
+            // Use derived display for model params (full / active if available)
+            const modelParamsB = paramsDisplay;
             // Filter: must fit model and at least 1 request, context >= 8K, and tps > 0
             const runnable = (availableMemory >= kvPerReq) && (maxReqRaw >= 1) && (ctx >= 8192) && (tpsNum > 0);
             if (runnable) {
@@ -703,7 +758,8 @@ function buildPerformanceScenarioTable() {
                     tokensPerSec: tpsNum.toFixed(2),
                     tokensPerSecNum: tpsNum,
                     genTime: Number.isFinite(genTimeNum) ? `${genTimeNum.toFixed(1)} s` : 'N/A',
-                    genTimeNum: genTimeNum
+                    genTimeNum: genTimeNum,
+                    modelParamsB: modelParamsB
                 });
             }
         });
@@ -863,16 +919,27 @@ function buildPerformanceScenarioTable() {
 function copyScenarioTable() {
     const rows = Array.isArray(window.__scenarioRows) ? window.__scenarioRows : [];
     if (rows.length === 0) return;
-    const headers = ['Model','GPU','Number of GPUs','Quantization','Context Length','Max Concurrent Requests','Tokens per Second','Time for 100 Tokens (s)'];
+    const headers = ['Model','Model Parameters (B)','GPU','Number of GPUs','Quantization','Context Length','Max Concurrent Requests','Tokens per Second','Time for 100 Tokens (s)'];
+    const esc = (v) => {
+        const s = v == null ? '' : String(v);
+        const escaped = s.replace(/"/g, '""');
+        return /[",\n]/.test(escaped) ? `"${escaped}"` : escaped;
+    };
+    const fmtCtx = (n) => {
+        const num = Number(n);
+        if (!isFinite(num)) return '';
+        return num >= 1024 ? `${Math.round(num / 1024)}k` : String(num);
+    };
     const csvRows = [headers.join(',')].concat(rows.map(r => [
-        r.model,
-        r.gpu,
-        r.gpuCount,
-        r.quant,
-        r.context,
-        r.maxConcurrent,
-        r.tokensPerSec,
-        (Number.isFinite(r.genTimeNum) ? r.genTimeNum.toFixed(1) : '')
+        esc(r.model),
+        esc(r.modelParamsB ?? ''),
+        esc(r.gpu),
+        esc(r.gpuCount),
+        esc(r.quant),
+        esc(fmtCtx(r.context)),
+        esc(r.maxConcurrent),
+        esc(r.tokensPerSec),
+        esc(Number.isFinite(r.genTimeNum) ? r.genTimeNum.toFixed(1) : '')
     ].join(',')));
     const csv = csvRows.join('\n');
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -884,16 +951,27 @@ function copyScenarioTable() {
 function downloadScenarioTable() {
     const rows = Array.isArray(window.__scenarioRows) ? window.__scenarioRows : [];
     if (rows.length === 0) return;
-    const headers = ['Model','GPU','Number of GPUs','Quantization','Context Length','Max Concurrent Requests','Tokens per Second','Time for 100 Tokens (s)'];
+    const headers = ['Model','Model Parameters (B)','GPU','Number of GPUs','Quantization','Context Length','Max Concurrent Requests','Tokens per Second','Time for 100 Tokens (s)'];
+    const esc = (v) => {
+        const s = v == null ? '' : String(v);
+        const escaped = s.replace(/"/g, '""');
+        return /[",\n]/.test(escaped) ? `"${escaped}"` : escaped;
+    };
+    const fmtCtx = (n) => {
+        const num = Number(n);
+        if (!isFinite(num)) return '';
+        return num >= 1024 ? `${Math.round(num / 1024)}k` : String(num);
+    };
     const csvRows = [headers.join(',')].concat(rows.map(r => [
-        r.model,
-        r.gpu,
-        r.gpuCount,
-        r.quant,
-        r.context,
-        r.maxConcurrent,
-        r.tokensPerSec,
-        (Number.isFinite(r.genTimeNum) ? r.genTimeNum.toFixed(1) : '')
+        esc(r.model),
+        esc(r.modelParamsB ?? ''),
+        esc(r.gpu),
+        esc(r.gpuCount),
+        esc(r.quant),
+        esc(fmtCtx(r.context)),
+        esc(r.maxConcurrent),
+        esc(r.tokensPerSec),
+        esc(Number.isFinite(r.genTimeNum) ? r.genTimeNum.toFixed(1) : '')
     ].join(',')));
     const csv = csvRows.join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
