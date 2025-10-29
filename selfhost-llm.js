@@ -595,6 +595,316 @@ function calculate() {
     if (typeof updateURL === 'function') {
         updateURL();
     }
+
+    // Build/update the performance scenarios table
+    if (typeof buildPerformanceScenarioTable === 'function') {
+        buildPerformanceScenarioTable();
+    }
+}
+
+// Build a scenario table showing performance across GPU counts and context lengths
+function buildPerformanceScenarioTable() {
+    const section = document.getElementById('scenario-table-section');
+    const table = document.getElementById('scenario-table');
+    const tbody = table ? table.querySelector('tbody') : null;
+    if (!section || !tbody) return;
+
+    const gpuTypeEl = document.getElementById('gpu-type');
+    const gpuType = gpuTypeEl ? gpuTypeEl.value : '';
+    const vramPerGpu = parseFloat(document.getElementById('vram-per-gpu').value) || 0;
+    const systemOverhead = parseFloat(document.getElementById('system-overhead').value) || 2;
+    const quantization = parseFloat(document.getElementById('quantization').value);
+    const kvCacheOverhead = parseFloat(document.getElementById('kv-cache-overhead').value) / 100;
+
+    const modelInputType = document.querySelector('input[name="model-input-type"]:checked').value;
+    const modelSelect = document.getElementById('model-preset');
+    const selectedModelOption = modelSelect && modelSelect.selectedIndex >= 0 ? modelSelect.options[modelSelect.selectedIndex] : null;
+
+    // If essential selections are missing, hide the section
+    if (!gpuType || vramPerGpu <= 0 || !selectedModelOption) {
+        section.style.display = 'none';
+        return;
+    }
+
+    // Determine MoE and memory base consistent with offloading toggle
+    const activeMemoryAttr = selectedModelOption.getAttribute('data-active-memory');
+    const totalMemoryAttr = selectedModelOption.getAttribute('data-memory');
+    const isMoE = !!activeMemoryAttr;
+    const offloadingEnabled = !!document.getElementById('moe-offloading') && document.getElementById('moe-offloading').checked;
+
+    let perfModelMemoryBase;
+    if (isMoE) {
+        perfModelMemoryBase = offloadingEnabled
+            ? (parseFloat(activeMemoryAttr) || parseFloat(totalMemoryAttr) || 14)
+            : (parseFloat(totalMemoryAttr) || parseFloat(activeMemoryAttr) || 14);
+    } else {
+        perfModelMemoryBase = parseFloat(totalMemoryAttr) || 14;
+    }
+    const perfMemoryAdjusted = perfModelMemoryBase * quantization;
+
+    // Presentation fields
+    const modelLabel = (selectedModelOption.textContent || selectedModelOption.innerText || '').trim();
+    const gpuLabelOption = gpuTypeEl.options[gpuTypeEl.selectedIndex];
+    const gpuLabel = (gpuLabelOption && (gpuLabelOption.textContent || gpuLabelOption.innerText) || '').trim();
+    const quantLabelMap = { '1.0': 'FP16/BF16', '0.5': 'INT8/FP8', '0.25': 'INT4/MXFP4', '0.125': 'INT2' };
+    const quantLabel = quantLabelMap[String(quantization)] || `${quantization}x`;
+
+    // Compose GPU counts and contexts to explore (min context 8K)
+    const currentCount = parseInt(document.getElementById('gpu-count').value) || 1;
+    // Build counts around current selection: ±5 window, clip at 1
+    const gpuCounts = [];
+    const startCount = Math.max(1, currentCount - 5);
+    const endCount = currentCount + 5;
+    for (let c = startCount; c <= endCount; c++) {
+        gpuCounts.push(c);
+    }
+    // De-duplicate and sort (in case currentCount < 11 and we later expand)
+    const seenCounts = new Set();
+    const baseCounts = gpuCounts.filter(c => {
+        if (seenCounts.has(c)) return false;
+        seenCounts.add(c);
+        return true;
+    }).sort((a, b) => a - b);
+
+    // Include selected context length plus standard tiers
+    let selectedContextLength;
+    const contextInputType = document.querySelector('input[name="context-input-type"]:checked').value;
+    if (contextInputType === 'preset') {
+        selectedContextLength = parseInt(document.getElementById('context-preset').value) || 4096;
+    } else {
+        selectedContextLength = parseInt(document.getElementById('context-custom').value) || 4096;
+    }
+    // Limit contexts to the requested set: 8K, 16K, 32K, 64K, 128K
+    const contexts = [8192, 16384, 32768, 65536, 131072];
+
+    // Build rows
+    const rows = [];
+    baseCounts.forEach(gc => {
+        const totalVRAM = gc * vramPerGpu;
+        const availableMemory = totalVRAM - systemOverhead - perfMemoryAdjusted;
+        contexts.forEach(ctx => {
+            // KV cache per request for this context
+            const kvPerReq = computeKVCacheGB(ctx, selectedModelOption, 2, kvCacheOverhead);
+            const maxReqRaw = availableMemory / kvPerReq;
+            const maxReq = Math.max(0, maxReqRaw);
+            const perf = calculatePerformance(perfMemoryAdjusted, quantization, ctx, gpuType, gc);
+            const tpsNum = perf ? Number(perf.tokensPerSecond) : 0;
+            const genTimeNum = tpsNum > 0 ? (100 / tpsNum) : Infinity;
+            // Filter: must fit model and at least 1 request, context >= 8K, and tps > 0
+            const runnable = (availableMemory >= kvPerReq) && (maxReqRaw >= 1) && (ctx >= 8192) && (tpsNum > 0);
+            if (runnable) {
+                rows.push({
+                    model: modelLabel,
+                    gpu: gpuLabel || gpuType,
+                    gpuCount: gc,
+                    quant: quantLabel,
+                    context: ctx,
+                    maxConcurrent: maxReq.toFixed(2),
+                    tokensPerSec: tpsNum.toFixed(2),
+                    tokensPerSecNum: tpsNum,
+                    genTime: Number.isFinite(genTimeNum) ? `${genTimeNum.toFixed(1)} s` : 'N/A',
+                    genTimeNum: genTimeNum
+                });
+            }
+        });
+    });
+
+    // Guarantee at least 10 recommendations by extending counts upward if needed
+    if (rows.length < 10) {
+        let gc = (baseCounts.length > 0 ? baseCounts[baseCounts.length - 1] + 1 : currentCount + 1);
+        let safety = 0;
+        while (rows.length < 10 && safety < 200) {
+            const totalVRAM = gc * vramPerGpu;
+            const availableMemory = totalVRAM - systemOverhead - perfMemoryAdjusted;
+            for (const ctx of contexts) {
+                const kvPerReq = computeKVCacheGB(ctx, selectedModelOption, 2, kvCacheOverhead);
+                const maxReqRaw = availableMemory / kvPerReq;
+                const maxReq = Math.max(0, maxReqRaw);
+                const perf = calculatePerformance(perfMemoryAdjusted, quantization, ctx, gpuType, gc);
+                const tpsNum = perf ? Number(perf.tokensPerSecond) : 0;
+                const genTimeNum = tpsNum > 0 ? (100 / tpsNum) : Infinity;
+                const runnable = (availableMemory >= kvPerReq) && (maxReqRaw >= 1) && (ctx >= 8192) && (tpsNum > 0);
+                if (runnable) {
+                    rows.push({
+                        model: modelLabel,
+                        gpu: gpuLabel || gpuType,
+                        gpuCount: gc,
+                        quant: quantLabel,
+                        context: ctx,
+                        maxConcurrent: maxReq.toFixed(2),
+                        tokensPerSec: tpsNum.toFixed(2),
+                        tokensPerSecNum: tpsNum,
+                        genTime: Number.isFinite(genTimeNum) ? `${genTimeNum.toFixed(1)} s` : 'N/A',
+                        genTimeNum: genTimeNum
+                    });
+                    if (rows.length >= 10) break;
+                }
+            }
+            gc++;
+            safety++;
+        }
+    }
+
+    // Render table
+    const toK = (n) => {
+        if (n >= 1024) return `${Math.round(n / 1024)}K`;
+        return String(n);
+    };
+    function renderScenarioRows(currentRows) {
+        // Persist rows for copy/download and keep in sync with sort
+        window.__scenarioRows = currentRows;
+        tbody.innerHTML = currentRows.map(r => (
+            `<tr>
+                <td class="py-1 pr-3">${r.model}</td>
+                <td class="py-1 pr-3">${r.gpu}</td>
+                <td class="py-1 pr-3">${r.gpuCount}</td>
+                <td class="py-1 pr-3">${r.quant}</td>
+                <td class="py-1 pr-3">${toK(r.context)} tokens</td>
+                <td class="py-1 pr-3">${r.maxConcurrent}</td>
+                <td class="py-1 pr-3">${r.tokensPerSec}</td>
+                <td class="py-1 pr-3">${r.genTime}</td>
+            </tr>`
+        )).join('');
+    }
+
+    // Base rows before filtering/sorting
+    window.__scenarioBaseRows = rows;
+
+    // Filtering
+    function applyScenarioFilters(baseRows) {
+        const ctxSelEl = document.getElementById('scenario-filter-context');
+        const minTpsEl = document.getElementById('scenario-filter-min-tps');
+        const ctxSel = ctxSelEl ? ctxSelEl.value : 'all';
+        const minTps = minTpsEl ? Number(minTpsEl.value) : NaN;
+        return baseRows.filter(r => {
+            if (ctxSel !== 'all' && r.context !== Number(ctxSel)) return false;
+            if (!isNaN(minTps) && r.tokensPerSecNum < minTps) return false;
+            return true;
+        });
+    }
+
+    let filteredRows = applyScenarioFilters(rows);
+
+    // Sorting
+    function sortRows(rowsToSort) {
+        const prev = window.__scenarioSortState || { key: null, dir: 'asc' };
+        const key = prev.key;
+        const dir = prev.dir;
+        if (!key) return rowsToSort;
+        const numericKeys = new Set(['gpuCount', 'context', 'maxConcurrent', 'tokensPerSecNum', 'genTimeNum']);
+        const getVal = (row, key) => {
+            if (key === 'tokensPerSec') return row.tokensPerSecNum || Number(row.tokensPerSec) || 0;
+            return numericKeys.has(key) ? Number(row[key]) : String(row[key] || '').toLowerCase();
+        };
+        const copy = [...rowsToSort];
+        copy.sort((a, b) => {
+            const va = getVal(a, key);
+            const vb = getVal(b, key);
+            if (typeof va === 'number' && typeof vb === 'number' && !isNaN(va) && !isNaN(vb)) {
+                return dir === 'asc' ? va - vb : vb - va;
+            }
+            const cmp = String(va).localeCompare(String(vb));
+            return dir === 'asc' ? cmp : -cmp;
+        });
+        return copy;
+    }
+
+    const finalRows = sortRows(filteredRows);
+    renderScenarioRows(finalRows);
+
+    // Bind sortable headers (idempotent)
+    if (!window.__scenarioSortingBound) {
+        const headerCells = table.querySelectorAll('thead th[data-key]');
+        const numericKeys = new Set(['gpuCount', 'context', 'maxConcurrent', 'tokensPerSecNum', 'genTimeNum', 'ratingRank']);
+        const getVal = (row, key) => {
+            if (key === 'tokensPerSec') return row.tokensPerSecNum || Number(row.tokensPerSec) || 0;
+            const v = row[key];
+            return numericKeys.has(key) ? Number(v) : String(v || '').toLowerCase();
+        };
+        headerCells.forEach(th => {
+            th.addEventListener('click', () => {
+                const key = th.getAttribute('data-key');
+                const prev = window.__scenarioSortState || { key: null, dir: 'asc' };
+                const dir = prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc';
+                window.__scenarioSortState = { key, dir };
+                const base = Array.isArray(window.__scenarioBaseRows) ? window.__scenarioBaseRows : [];
+                const filtered = applyScenarioFilters(base);
+                const sorted = sortRows(filtered);
+                renderScenarioRows(sorted);
+
+                // Update header sort indicators
+                headerCells.forEach(h => { h.classList.remove('sorted-asc', 'sorted-desc'); h.removeAttribute('aria-sort'); });
+                th.classList.add(dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+                th.setAttribute('aria-sort', dir);
+            });
+        });
+        window.__scenarioSortingBound = true;
+    }
+
+    // Bind filter controls (idempotent)
+    if (!window.__scenarioFiltersBound) {
+        const ctxSelEl = document.getElementById('scenario-filter-context');
+        const minTpsEl = document.getElementById('scenario-filter-min-tps');
+        const reapply = () => {
+            const base = Array.isArray(window.__scenarioBaseRows) ? window.__scenarioBaseRows : [];
+            const filtered = applyScenarioFilters(base);
+            const sorted = sortRows(filtered);
+            renderScenarioRows(sorted);
+        };
+        if (ctxSelEl) ctxSelEl.addEventListener('change', reapply);
+        if (minTpsEl) minTpsEl.addEventListener('input', reapply);
+        window.__scenarioFiltersBound = true;
+    }
+
+    section.style.display = rows.length > 0 ? 'block' : 'none';
+}
+
+// Copy scenario table as CSV to clipboard
+function copyScenarioTable() {
+    const rows = Array.isArray(window.__scenarioRows) ? window.__scenarioRows : [];
+    if (rows.length === 0) return;
+    const headers = ['Model','GPU','Number of GPUs','Quantization','Context Length','Max Concurrent Requests','Tokens per Second','Time for 100 Tokens (s)'];
+    const csvRows = [headers.join(',')].concat(rows.map(r => [
+        r.model,
+        r.gpu,
+        r.gpuCount,
+        r.quant,
+        r.context,
+        r.maxConcurrent,
+        r.tokensPerSec,
+        (Number.isFinite(r.genTimeNum) ? r.genTimeNum.toFixed(1) : '')
+    ].join(',')));
+    const csv = csvRows.join('\n');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(csv).catch(() => {});
+    }
+}
+
+// Download scenario table as CSV
+function downloadScenarioTable() {
+    const rows = Array.isArray(window.__scenarioRows) ? window.__scenarioRows : [];
+    if (rows.length === 0) return;
+    const headers = ['Model','GPU','Number of GPUs','Quantization','Context Length','Max Concurrent Requests','Tokens per Second','Time for 100 Tokens (s)'];
+    const csvRows = [headers.join(',')].concat(rows.map(r => [
+        r.model,
+        r.gpu,
+        r.gpuCount,
+        r.quant,
+        r.context,
+        r.maxConcurrent,
+        r.tokensPerSec,
+        (Number.isFinite(r.genTimeNum) ? r.genTimeNum.toFixed(1) : '')
+    ].join(',')));
+    const csv = csvRows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'performance_scenarios.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 // ASCII Art Style - Circuit Board (GPU version)

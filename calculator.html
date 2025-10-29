@@ -617,6 +617,65 @@
             </div>
         </div>
 
+        <!-- Performance Scenarios Table -->
+        <div id="scenario-table-section" class="performance-section accent-box" style="display: none;">
+            <div class="performance-title" style="display:flex; align-items:center;">
+                <span class="panel-title" style="font-weight:700;">› Performance Scenarios</span>
+                <div style="flex:1"></div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn-link" onclick="copyScenarioTable()">Copy</button>
+                    <button class="btn-link" onclick="downloadScenarioTable()">Download CSV</button>
+                </div>
+            </div>
+            <!-- Filters -->
+            <div id="scenario-filters" class="mt-2 mb-2" style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; align-items:center;">
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <label class="text-soft-gray/80" for="scenario-filter-context">Context:</label>
+                    <select id="scenario-filter-context" class="bg-deep-charcoal text-soft-gray px-2 py-1 rounded w-full">
+                        <option value="all">All</option>
+                        <option value="8192">8K</option>
+                        <option value="16384">16K</option>
+                        <option value="32768">32K</option>
+                        <option value="65536">64K</option>
+                        <option value="131072">128K</option>
+                    </select>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <label class="text-soft-gray/80" for="scenario-filter-min-tps">Min tokens/sec:</label>
+                    <input id="scenario-filter-min-tps" type="number" min="0" step="0.1" placeholder="e.g. 10" class="bg-deep-charcoal text-soft-gray px-2 py-1 rounded w-full" />
+                </div>
+            </div>
+            <style>
+                #scenario-table { border-collapse: collapse; }
+                #scenario-table th, #scenario-table td { border-bottom: 1px solid rgba(226, 232, 240, 0.2); }
+                #scenario-table thead th { font-weight: 700; }
+                #scenario-table thead th .sort-icons { display: inline-flex; flex-direction: column; margin-left: 6px; font-size: 10px; line-height: 10px; }
+                #scenario-table thead th .sort-icons span { opacity: 0.35; }
+                #scenario-table thead th.sorted-asc .sort-icons .up { opacity: 1; }
+                #scenario-table thead th.sorted-desc .sort-icons .down { opacity: 1; }
+            </style>
+            <div class="overflow-x-auto">
+                <table id="scenario-table" class="w-full text-left text-soft-gray">
+                    <thead>
+                        <tr>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="model" title="Click to sort"><span>Model</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="gpu" title="Click to sort"><span>GPU</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="gpuCount" title="Click to sort"><span># GPUs</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="quant" title="Click to sort"><span>Quantization</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="context" title="Click to sort"><span>Context</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="maxConcurrent" title="Click to sort"><span>Max Concurrent</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="tokensPerSec" title="Click to sort"><span>Tokens/sec</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="genTimeNum" title="Click to sort"><span>Time for 100 tokens</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="help-text mt-2">Auto-generated from current selections (MoE mode applies).</div>
+        </div>
+
         <div class="info-box">
             <div class="info-title">› CALCULATION NOTES</div>
             • Model memory includes weights and activation overhead<br>
