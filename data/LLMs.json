@@ -801,4 +801,386 @@
     ],
     "notes": "Largest distilled model, 94.5% on MATH-500, dense model SOTA"
   }
+  ,
+  {
+    "model_name": "Mistral Voxtral-3B",
+    "release_date": "2025-01",
+    "organization": "Mistral AI",
+    "logo_path": "resources/mistral.png",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 3,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 131072,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM",
+      "llama.cpp",
+      "Ollama"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3060",
+      "AMD RX 6600"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 131072,
+    "memory_footprint_gb": 3,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/mistralai",
+      "https://github.com/mistralai"
+    ],
+    "notes": "Compact dense model; provisional metadata for catalog purposes"
+  },
+  {
+    "model_name": "Mistral Voxtral-24B",
+    "release_date": "2025-01",
+    "organization": "Mistral AI",
+    "logo_path": "resources/mistral.png",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 24,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 131072,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM",
+      "llama.cpp",
+      "Ollama"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 4090",
+      "NVIDIA A100"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 131072,
+    "memory_footprint_gb": 20,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/mistralai",
+      "https://github.com/mistralai"
+    ],
+    "notes": "Large dense model; provisional metadata for catalog purposes"
+  },
+  {
+    "model_name": "BGE-M3-560M",
+    "release_date": "2024-12",
+    "organization": "BAAI / FlagEmbedding",
+    "architecture_type": "Embedding",
+    "parameter_count_billion": 0.56,
+    "precision_supported": [
+      "FP16",
+      "BF16"
+    ],
+    "context_length": 8192,
+    "quantization_available": true,
+    "quantization_types": [
+      "int8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3060",
+      "AMD RX 6600"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 8192,
+    "memory_footprint_gb": 1,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/BAAI/bge-m3",
+      "https://github.com/FlagOpen/FlagEmbedding"
+    ],
+    "notes": "Multilingual multi-function embedding model (retrieval, rerank, classification)"
+  },
+  {
+    "model_name": "Qwen3-Reranker-8B",
+    "release_date": "2025-04",
+    "organization": "Alibaba Cloud / Qwen team",
+    "logo_path": "resources/alibaba.png",
+    "architecture_type": "Reranker",
+    "parameter_count_billion": 8,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 4096,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3080",
+      "AMD RX 6800"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 4096,
+    "memory_footprint_gb": 6,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/Qwen/Qwen3-Reranker-8B",
+      "https://github.com/QwenLM/Qwen3"
+    ],
+    "notes": "High-capacity reranker for dense retrieval pipelines"
+  },
+  {
+    "model_name": "Qwen3-Reranker-4B",
+    "release_date": "2025-04",
+    "organization": "Alibaba Cloud / Qwen team",
+    "logo_path": "resources/alibaba.png",
+    "architecture_type": "Reranker",
+    "parameter_count_billion": 4,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 4096,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3060",
+      "AMD RX 6600"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 4096,
+    "memory_footprint_gb": 3,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/Qwen/Qwen3-Reranker-4B",
+      "https://github.com/QwenLM/Qwen3"
+    ],
+    "notes": "Mid-size reranker balancing speed and effectiveness"
+  },
+  {
+    "model_name": "Qwen3-Reranker-0.6B",
+    "release_date": "2025-04",
+    "organization": "Alibaba Cloud / Qwen team",
+    "logo_path": "resources/alibaba.png",
+    "architecture_type": "Reranker",
+    "parameter_count_billion": 0.6,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 4096,
+    "quantization_available": true,
+    "quantization_types": [
+      "int8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3050",
+      "AMD RX 6500"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 4096,
+    "memory_footprint_gb": 1,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B",
+      "https://github.com/QwenLM/Qwen3"
+    ],
+    "notes": "Lightweight reranker suitable for CPU-constrained or edge setups"
+  },
+  {
+    "model_name": "Qwen3-Embedding-8B",
+    "release_date": "2025-04",
+    "organization": "Alibaba Cloud / Qwen team",
+    "logo_path": "resources/alibaba.png",
+    "architecture_type": "Embedding",
+    "parameter_count_billion": 8,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 8192,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3080",
+      "AMD RX 6800"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 8192,
+    "memory_footprint_gb": 6,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/Qwen/Qwen3-Embedding-8B",
+      "https://github.com/QwenLM/Qwen3"
+    ],
+    "notes": "High-capacity embedding model for semantic search and retrieval"
+  },
+  {
+    "model_name": "Qwen3-Embedding-4B",
+    "release_date": "2025-04",
+    "organization": "Alibaba Cloud / Qwen team",
+    "logo_path": "resources/alibaba.png",
+    "architecture_type": "Embedding",
+    "parameter_count_billion": 4,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 8192,
+    "quantization_available": true,
+    "quantization_types": [
+      "4-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3060",
+      "AMD RX 6600"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 8192,
+    "memory_footprint_gb": 3,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/Qwen/Qwen3-Embedding-4B",
+      "https://github.com/QwenLM/Qwen3"
+    ],
+    "notes": "Mid-size embedding model; balanced performance and resource use"
+  },
+  {
+    "model_name": "Qwen3-Embedding-0.6B",
+    "release_date": "2025-04",
+    "organization": "Alibaba Cloud / Qwen team",
+    "logo_path": "resources/alibaba.png",
+    "architecture_type": "Embedding",
+    "parameter_count_billion": 0.6,
+    "precision_supported": [
+      "BF16",
+      "FP16"
+    ],
+    "context_length": 8192,
+    "quantization_available": true,
+    "quantization_types": [
+      "int8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "Transformers",
+      "vLLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA RTX 3050",
+      "AMD RX 6500"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 8192,
+    "memory_footprint_gb": 1,
+    "license": "Apache 2.0",
+    "source_links": [
+      "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+      "https://github.com/QwenLM/Qwen3"
+    ],
+    "notes": "Lightweight embedding model for cost-effective semantic tasks"
+  }
 ]
