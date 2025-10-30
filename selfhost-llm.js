@@ -283,6 +283,7 @@ async function augmentCalculatorGPUOptionsFromCatalog() {
     const groupLabelFor = (gpu) => {
         const vendor = String(gpu.vendor || '').trim().toLowerCase();
         const name = baseName(gpu.name || '');
+        if (/^rtx\s*50/i.test(name)) return 'NVIDIA RTX 50 Series';
         if (/^rtx\s*40/i.test(name)) return 'NVIDIA RTX 40 Series';
         if (/^rtx\s*30/i.test(name)) return 'NVIDIA RTX 30 Series';
         if (vendor === 'nvidia') return 'NVIDIA Professional';
@@ -300,7 +301,8 @@ async function augmentCalculatorGPUOptionsFromCatalog() {
 
         // Batch DOM updates per optgroup to reduce reflows
         const groupElements = new Map();
-        const fragments = new Map();
+        // Collect options per group so we can SORT before appending
+        const optionsByGroup = new Map();
         const getGroup = (label) => {
             let g = groupElements.get(label);
             if (!g) {
@@ -309,15 +311,20 @@ async function augmentCalculatorGPUOptionsFromCatalog() {
             }
             return g;
         };
-        const getFragment = (label) => {
-            let f = fragments.get(label);
-            if (!f) {
-                f = document.createDocumentFragment();
-                fragments.set(label, f);
+        const addOptionToGroup = (label, opt) => {
+            let list = optionsByGroup.get(label);
+            if (!list) {
+                list = [];
+                optionsByGroup.set(label, list);
+                // Ensure the group element exists ahead of time
+                getGroup(label);
             }
-            // Ensure the group element exists ahead of time
-            getGroup(label);
-            return f;
+            list.push(opt);
+        };
+        const parseModelNumber = (valOrText) => {
+            const s = String(valOrText || '');
+            const m = s.match(/(\d{3,4})/);
+            return m ? parseInt(m[1], 10) : null;
         };
 
         gpus.forEach(gpu => {
@@ -346,13 +353,27 @@ async function augmentCalculatorGPUOptionsFromCatalog() {
                 opt.setAttribute('data-bandwidth', String(gbps));
             }
             opt.textContent = `${base} (${memGB}GB VRAM)`;
-            const frag = getFragment(groupLabel);
-            frag.appendChild(opt);
+            addOptionToGroup(groupLabel, opt);
         });
 
-        // Flush fragments to their optgroups in one pass
-        fragments.forEach((frag, label) => {
+        // Sort and flush options to their optgroups in one pass
+        optionsByGroup.forEach((list, label) => {
             const group = getGroup(label);
+            const frag = document.createDocumentFragment();
+            // For RTX series, sort by model number ascending (e.g., 3060→3090)
+            const isRTXSeries = /NVIDIA RTX (30|40|50) Series/i.test(label);
+            const sorted = list.slice().sort((a, b) => {
+                if (isRTXSeries) {
+                    const an = parseModelNumber(a.value || a.textContent);
+                    const bn = parseModelNumber(b.value || b.textContent);
+                    if (an != null && bn != null) return an - bn;
+                }
+                // Fallback lexicographic by text
+                const at = String(a.textContent || '');
+                const bt = String(b.textContent || '');
+                return at.localeCompare(bt);
+            });
+            sorted.forEach(opt => frag.appendChild(opt));
             group.appendChild(frag);
         });
     } catch (e) {
