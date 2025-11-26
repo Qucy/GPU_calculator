@@ -28,6 +28,7 @@ class GPUCalculator {
             { name: 'H100', vram: 80, bandwidth: 3350, price: 30000, cloudPrice: 5.50 },
             { name: 'H20', vram: 96, bandwidth: 2000, price: 25000, cloudPrice: 4.50 },
             { name: 'A100', vram: 80, bandwidth: 2039, price: 15000, cloudPrice: 3.50 },
+            { name: 'V100', vram: 32, bandwidth: 900, price: 8000, cloudPrice: 1.50 },
             { name: 'L40', vram: 48, bandwidth: 846, price: 3500, cloudPrice: 1.80 }
         ];
 
@@ -66,7 +67,7 @@ class GPUCalculator {
         // Catalog sort states
         this.gpuCatalogSort = { key: 'name', dir: 'asc' };
         this.llmCatalogSort = { key: 'model_name', dir: 'asc' };
-        
+
         // Filter states
         this.gpuFilters = {
             vendor: '',
@@ -80,7 +81,7 @@ class GPUCalculator {
         };
         this.filteredGpuData = [];
         this.filteredLlmData = [];
-        
+
         // SPA-style page navigation
         this.pageOrder = ['gpu', 'models', 'calculator'];
         this.currentPage = 'gpu';
@@ -99,7 +100,7 @@ class GPUCalculator {
             // Initialize filtered data with all records
             this.filteredGpuData = [...(this.gpuCatalogData || [])];
             this.filteredLlmData = [...(this.llms || [])];
-            
+
             this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
             this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
             // Set initial full-width layout for both catalogs
@@ -114,7 +115,7 @@ class GPUCalculator {
             // Initialize filtered data with empty arrays if loading fails
             this.filteredGpuData = [];
             this.filteredLlmData = [];
-            
+
             this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
             this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
             // Set initial full-width layout for both catalogs
@@ -495,7 +496,7 @@ class GPUCalculator {
             const radio = option.querySelector('input[type="radio"]');
             const indicator = option.querySelector('.w-2');
             const border = option.querySelector('.w-4');
-            
+
             if (radio.value === this.currentConfig.quantization) {
                 border.classList.add('border-electric');
                 border.classList.remove('border-soft-gray/50');
@@ -516,7 +517,7 @@ class GPUCalculator {
         const quantization = this.quantizationFactors[this.currentConfig.quantization];
         // dtype-aware bytes per value for KV/activation
         const bytesPerValue = (this.currentConfig.quantization === 'fp32') ? 4 :
-                              (this.currentConfig.quantization === 'fp16' || this.currentConfig.quantization === 'bf16') ? 2 : 1;
+            (this.currentConfig.quantization === 'fp16' || this.currentConfig.quantization === 'bf16') ? 2 : 1;
 
         // Resolve architecture specs (layers, hiddenDim, heads)
         let layers, hiddenDim, heads;
@@ -531,28 +532,28 @@ class GPUCalculator {
             else if (p <= 175.0e9) { layers = 96; hiddenDim = 12288; heads = 96; }
             else { layers = 120; hiddenDim = 12288; heads = 120; }
         }
-        
+
         // Model weights memory
         const effectiveParams = params || 7.0e9;
-        const weightsMemory = (effectiveParams * quantization) / (1024**3); // Convert to GB
-        
+        const weightsMemory = (effectiveParams * quantization) / (1024 ** 3); // Convert to GB
+
         // KV cache memory
         // Use concurrency to scale KV cache (each concurrent request maintains its own KV)
-        const baseCacheMemory = (2 * layers * hiddenDim * this.currentConfig.contextLength * this.currentConfig.concurrency * bytesPerValue) / (1024**3);
+        const baseCacheMemory = (2 * layers * hiddenDim * this.currentConfig.contextLength * this.currentConfig.concurrency * bytesPerValue) / (1024 ** 3);
         const kvFactor = 1 + ((typeof this.currentConfig.kvOverheadPercent === 'number') ? (this.currentConfig.kvOverheadPercent / 100) : 0);
         const cacheMemory = baseCacheMemory * kvFactor;
-        
+
         // Activation memory
         const actOverheadFactor = (hiddenDim >= 8192 || layers >= 80) ? 1.2 : 1.0; // apply overhead only for large models
-        const activationMemory = (this.currentConfig.batchSize * this.currentConfig.contextLength * hiddenDim * bytesPerValue * actOverheadFactor) / (1024**3);
-        
+        const activationMemory = (this.currentConfig.batchSize * this.currentConfig.contextLength * hiddenDim * bytesPerValue * actOverheadFactor) / (1024 ** 3);
+
         // Total with overhead
         const subtotal = weightsMemory + cacheMemory + activationMemory;
         const overheadPct = (typeof this.currentConfig.sysOverheadPercent === 'number') ? (this.currentConfig.sysOverheadPercent / 100) : 0.3;
         const fixedOverheadGB = (typeof this.currentConfig.sysOverheadGB === 'number') ? this.currentConfig.sysOverheadGB : 0;
         const overheadMemory = subtotal * overheadPct + fixedOverheadGB;
         const totalMemory = subtotal + overheadMemory;
-        
+
         return {
             weights: weightsMemory,
             cache: cacheMemory,
@@ -570,7 +571,7 @@ class GPUCalculator {
 
         // Computation efficiency per docs
         const efficiencyFactor = this.currentConfig.quantization === 'int8' ? 0.85 :
-                                 this.currentConfig.quantization === 'int4' ? 0.9 : 0.7; // fp16/bf16 default to 0.7
+            this.currentConfig.quantization === 'int4' ? 0.9 : 0.7; // fp16/bf16 default to 0.7
 
         // Tokens per second per documentation
         const tokensPerSecond = Math.max(1, memoryBandwidth / (memory.total * efficiencyFactor));
@@ -580,7 +581,7 @@ class GPUCalculator {
         const bandwidthUtilization = Math.min(95, Math.max(0, bandwidthUtilizationRaw));
 
         const effectiveSpeed = tokensPerSecond / this.currentConfig.concurrency;
-        
+
         return {
             inferenceSpeed: Math.round(tokensPerSecond),
             bandwidthUtilization: Math.round(bandwidthUtilization),
@@ -594,7 +595,7 @@ class GPUCalculator {
         const params = this.currentConfig.customParams || (model ? model.params : 7.0e9);
         const quantization = this.quantizationFactors[this.currentConfig.quantization];
         const bytesPerValue = (this.currentConfig.quantization === 'fp32') ? 4 :
-                              (this.currentConfig.quantization === 'fp16' || this.currentConfig.quantization === 'bf16') ? 2 : 1;
+            (this.currentConfig.quantization === 'fp16' || this.currentConfig.quantization === 'bf16') ? 2 : 1;
 
         // Resolve architecture specs
         let layers, hiddenDim;
@@ -609,11 +610,11 @@ class GPUCalculator {
             else { layers = 120; hiddenDim = 12288; }
         }
 
-        const weightsGB = (params * quantization) / (1024**3);
+        const weightsGB = (params * quantization) / (1024 ** 3);
         const actOverheadFactor = (hiddenDim >= 8192 || layers >= 80) ? 1.2 : 1.0;
-        const kvPerReqGB = (2 * layers * hiddenDim * this.currentConfig.contextLength * bytesPerValue) / (1024**3);
+        const kvPerReqGB = (2 * layers * hiddenDim * this.currentConfig.contextLength * bytesPerValue) / (1024 ** 3);
         const kvFactorRec = 1 + ((typeof this.currentConfig.kvOverheadPercent === 'number') ? (this.currentConfig.kvOverheadPercent / 100) : 0);
-        const actPerReqGB = (this.currentConfig.batchSize * this.currentConfig.contextLength * hiddenDim * bytesPerValue * actOverheadFactor) / (1024**3);
+        const actPerReqGB = (this.currentConfig.batchSize * this.currentConfig.contextLength * hiddenDim * bytesPerValue * actOverheadFactor) / (1024 ** 3);
         const perReqGB = (kvPerReqGB * kvFactorRec) + actPerReqGB;
 
         const memBudgetFactor = this.infra.memUtilizationMax;
@@ -668,7 +669,7 @@ class GPUCalculator {
 
     getOptimizationTips(memory, performance) {
         const tips = [];
-        
+
         if (memory.total > 40) {
             tips.push({
                 type: 'warning',
@@ -676,7 +677,7 @@ class GPUCalculator {
                 message: 'Consider using INT8 or INT4 quantization to reduce memory requirements by 50-75%.'
             });
         }
-        
+
         if (this.currentConfig.contextLength > 32000) {
             tips.push({
                 type: 'info',
@@ -684,7 +685,7 @@ class GPUCalculator {
                 message: 'For very large contexts, consider gradient checkpointing to trade compute for memory.'
             });
         }
-        
+
         if (this.currentConfig.concurrency > 100) {
             tips.push({
                 type: 'info',
@@ -692,7 +693,7 @@ class GPUCalculator {
                 message: 'Consider model parallelism or multiple GPU setups for better performance.'
             });
         }
-        
+
         if (performance.bandwidthUtilization < 50) {
             tips.push({
                 type: 'success',
@@ -700,7 +701,7 @@ class GPUCalculator {
                 message: 'You have headroom for larger batch sizes to improve throughput.'
             });
         }
-        
+
         if (tips.length === 0) {
             tips.push({
                 type: 'success',
@@ -708,7 +709,7 @@ class GPUCalculator {
                 message: 'Your current configuration appears well-balanced for the selected model.'
             });
         }
-        
+
         return tips;
     }
 
@@ -717,7 +718,7 @@ class GPUCalculator {
         const performance = this.calculatePerformance(memory);
         const gpuRecommendations = this.getGPURecommendations(memory);
         const subtotal = (memory.weights + memory.cache + memory.activation);
-        
+
         // Update memory display (safe)
         const safeSet = (id, value) => {
             const el = document.getElementById(id);
@@ -729,12 +730,12 @@ class GPUCalculator {
         safeSet('overhead-memory', `${memory.overhead.toFixed(1)} GB`);
         safeSet('subtotal-memory', `${subtotal.toFixed(1)} GB`);
         safeSet('total-memory', `${memory.total.toFixed(1)} GB`);
-        
+
         // Update performance metrics
         this.animateValue('inference-speed', performance.inferenceSpeed);
         this.animateValue('memory-bandwidth', performance.bandwidthUtilization);
         this.animateValue('effective-speed', performance.effectiveSpeed);
-        
+
         // Update parameter count
         const model = this.models[this.currentConfig.model];
         const params = this.currentConfig.customParams || (model ? model.params : 7.0e9);
@@ -753,10 +754,10 @@ class GPUCalculator {
         safeSet('summary-batch', String(this.currentConfig.batchSize));
         safeSet('summary-params', this.formatNumber((params || 7.0e9) / 1e9, 1) + 'B');
         safeSet('summary-overhead-pct', `${this.currentConfig.sysOverheadPercent}%`);
-        
+
         // Update GPU recommendations
         this.updateGPURecommendations(gpuRecommendations);
-        
+
         // Update memory chart
         this.updateMemoryChart(memory);
 
@@ -768,13 +769,13 @@ class GPUCalculator {
         const element = document.getElementById(elementId);
         if (!element) return;
         const currentValue = parseInt(element.textContent) || 0;
-        
+
         anime({
             targets: { value: currentValue },
             value: targetValue,
             duration: 800,
             easing: 'easeOutCubic',
-            update: function(anim) {
+            update: function (anim) {
                 element.textContent = Math.round(anim.animatables[0].target.value);
             }
         });
@@ -1505,17 +1506,17 @@ class GPUCalculator {
         if (this.gpuCatalogData.length > 0) {
             const vendors = [...new Set(this.gpuCatalogData.map(gpu => gpu.vendor).filter(Boolean))].sort();
             const architectures = [...new Set(this.gpuCatalogData.map(gpu => gpu.architecture).filter(Boolean))].sort();
-            
+
             const vendorSelect = document.getElementById('gpu-vendor-filter');
             const archSelect = document.getElementById('gpu-architecture-filter');
-            
+
             if (vendorSelect) {
                 vendorSelect.innerHTML = '<option value="">All Vendors</option>';
                 vendors.forEach(vendor => {
                     vendorSelect.innerHTML += `<option value="${vendor}">${vendor}</option>`;
                 });
             }
-            
+
             if (archSelect) {
                 archSelect.innerHTML = '<option value="">All Architectures</option>';
                 architectures.forEach(arch => {
@@ -1620,32 +1621,32 @@ class GPUCalculator {
 
     clearGPUFilters() {
         this.gpuFilters = { vendor: '', architecture: '', memory: '' };
-        
+
         // Reset filter UI
         const vendorSelect = document.getElementById('gpu-vendor-filter');
         const archSelect = document.getElementById('gpu-architecture-filter');
         const memorySelect = document.getElementById('gpu-memory-filter');
-        
+
         if (vendorSelect) vendorSelect.value = '';
         if (archSelect) archSelect.value = '';
         if (memorySelect) memorySelect.value = '';
-        
+
         this.filteredGpuData = [...this.gpuCatalogData];
         this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
     }
 
     clearLLMFilters() {
         this.llmFilters = { size: '', type: '', license: '' };
-        
+
         // Reset filter UI
         const sizeSelect = document.getElementById('llm-size-filter');
         const typeSelect = document.getElementById('llm-type-filter');
         const licenseSelect = document.getElementById('llm-license-filter');
-        
+
         if (sizeSelect) sizeSelect.value = '';
         if (typeSelect) typeSelect.value = '';
         if (licenseSelect) licenseSelect.value = '';
-        
+
         this.filteredLlmData = [...this.llms];
         this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
     }
@@ -1732,19 +1733,19 @@ class GPUCalculator {
         });
     }
 
-    
+
 
     updateOptimizationTips(tips) {
         const container = document.getElementById('optimization-tips');
         container.innerHTML = '';
-        
+
         tips.forEach(tip => {
             const div = document.createElement('div');
-            const colorClass = tip.type === 'success' ? 'border-sage' : 
-                              tip.type === 'warning' ? 'border-amber' : 'border-electric';
-            const iconClass = tip.type === 'success' ? 'text-sage' : 
-                             tip.type === 'warning' ? 'text-amber' : 'text-electric';
-            
+            const colorClass = tip.type === 'success' ? 'border-sage' :
+                tip.type === 'warning' ? 'border-amber' : 'border-electric';
+            const iconClass = tip.type === 'success' ? 'text-sage' :
+                tip.type === 'warning' ? 'text-amber' : 'text-electric';
+
             div.className = `p-4 bg-navy/50 rounded-lg border-l-4 ${colorClass}`;
             div.innerHTML = `
                 <div class="flex items-start space-x-3">
@@ -1757,7 +1758,7 @@ class GPUCalculator {
                     </div>
                 </div>
             `;
-            
+
             container.appendChild(div);
         });
     }
@@ -1769,7 +1770,7 @@ class GPUCalculator {
             return;
         }
         this.memoryChart = echarts.init(chartDom);
-        
+
         const option = {
             backgroundColor: 'transparent',
             tooltip: {
@@ -1803,7 +1804,7 @@ class GPUCalculator {
                 }
             }]
         };
-        
+
         this.memoryChart.setOption(option);
     }
 
@@ -1819,14 +1820,14 @@ class GPUCalculator {
                 ]
             }]
         };
-        
+
         this.memoryChart.setOption(option);
     }
 
     initializeAnimations() {
         // Initialize text splitting for animations
         Splitting();
-        
+
         // Typewriter effect
         if (document.getElementById('typed-text')) {
             new Typed('#typed-text', {
@@ -1843,10 +1844,10 @@ class GPUCalculator {
                 cursorChar: '|'
             });
         }
-        
+
         // Scroll animations
         this.setupScrollAnimations();
-        
+
         // Hover effects
         this.setupHoverEffects();
     }
@@ -1856,7 +1857,7 @@ class GPUCalculator {
             threshold: 0.1,
             rootMargin: '0px 0px -50px 0px'
         };
-        
+
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
@@ -1871,7 +1872,7 @@ class GPUCalculator {
                 }
             });
         }, observerOptions);
-        
+
         document.querySelectorAll('.hover-lift').forEach(el => {
             observer.observe(el);
         });
@@ -1888,7 +1889,7 @@ class GPUCalculator {
                     easing: 'easeOutCubic'
                 });
             });
-            
+
             element.addEventListener('mouseleave', () => {
                 anime({
                     targets: element,
@@ -1905,11 +1906,11 @@ class GPUCalculator {
         // P5.js particle system
         new p5((p) => {
             let particles = [];
-            
-            p.setup = function() {
+
+            p.setup = function () {
                 const canvas = p.createCanvas(p.windowWidth, p.windowHeight);
                 canvas.parent('particles-canvas');
-                
+
                 // Create particles
                 for (let i = 0; i < 50; i++) {
                     particles.push({
@@ -1922,27 +1923,27 @@ class GPUCalculator {
                     });
                 }
             };
-            
-            p.draw = function() {
+
+            p.draw = function () {
                 p.clear();
-                
+
                 // Update and draw particles
                 particles.forEach(particle => {
                     particle.x += particle.vx;
                     particle.y += particle.vy;
-                    
+
                     // Wrap around edges
                     if (particle.x < 0) particle.x = p.width;
                     if (particle.x > p.width) particle.x = 0;
                     if (particle.y < 0) particle.y = p.height;
                     if (particle.y > p.height) particle.y = 0;
-                    
+
                     // Draw particle
                     p.fill(0, 212, 255, particle.opacity * 255);
                     p.noStroke();
                     p.circle(particle.x, particle.y, particle.size);
                 });
-                
+
                 // Draw connections
                 for (let i = 0; i < particles.length; i++) {
                     for (let j = i + 1; j < particles.length; j++) {
@@ -1955,8 +1956,8 @@ class GPUCalculator {
                     }
                 }
             };
-            
-            p.windowResized = function() {
+
+            p.windowResized = function () {
                 p.resizeCanvas(p.windowWidth, p.windowHeight);
             };
         });
@@ -1969,7 +1970,7 @@ class GPUCalculator {
         const isDark = body.classList.contains('bg-charcoal') || body.classList.contains('bg-deep-charcoal');
         const toggleBtn = document.getElementById('theme-toggle');
         const iconSpan = toggleBtn ? toggleBtn.querySelector('span') : null;
-        
+
         if (isDark) {
             body.classList.remove('bg-charcoal', 'bg-deep-charcoal', 'text-soft-gray');
             body.classList.add('bg-gray-100', 'text-gray-900');
@@ -2000,7 +2001,7 @@ class GPUCalculator {
         const url = `${location.origin}${location.pathname}?${p.toString()}`;
         try {
             history.replaceState(null, '', url);
-        } catch (_) {}
+        } catch (_) { }
 
         const shareEl = document.getElementById('shareUrl');
         if (shareEl) {
@@ -2011,8 +2012,8 @@ class GPUCalculator {
     // Load configuration from the current URL and update the UI
     loadFromURL() {
         const params = new URLSearchParams(window.location.search || '');
-        const get = (k, d=null) => params.has(k) ? params.get(k) : d;
-        const num = (k, d=null) => params.has(k) ? Number(params.get(k)) : d;
+        const get = (k, d = null) => params.has(k) ? params.get(k) : d;
+        const num = (k, d = null) => params.has(k) ? Number(params.get(k)) : d;
 
         const cfg = this.currentConfig;
         const model = get('model', cfg.model);
@@ -2105,7 +2106,7 @@ class GPUCalculator {
         this.updateCalculations();
     }
 
-    
+
 
     formatNumber(num, decimals = 0) {
         return new Intl.NumberFormat('en-US').format(num);
@@ -2164,7 +2165,7 @@ function closePerformanceExplanation() {
 function closeAllDialogs() {
     const o = document.getElementById('overlay');
     if (o) o.classList.remove('open');
-    ['shareDialog','explanationDialog','performanceExplanationDialog'].forEach(id => {
+    ['shareDialog', 'explanationDialog', 'performanceExplanationDialog'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.remove('open');
     });
@@ -2188,7 +2189,7 @@ async function copyShareLink() {
         tmp.value = text;
         document.body.appendChild(tmp);
         tmp.select();
-        try { document.execCommand('copy'); } catch (_) {}
+        try { document.execCommand('copy'); } catch (_) { }
         document.body.removeChild(tmp);
     }
 }
@@ -2198,7 +2199,7 @@ function scrollToCalculator() {
     if (window.gpuCalculator && typeof window.gpuCalculator.switchPage === 'function') {
         window.gpuCalculator.switchPage('calculator');
     } else {
-        document.getElementById('calculator').scrollIntoView({ 
+        document.getElementById('calculator').scrollIntoView({
             behavior: 'smooth',
             block: 'start'
         });
