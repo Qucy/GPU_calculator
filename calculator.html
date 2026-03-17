@@ -134,8 +134,11 @@
             <div class="step">
                 <strong>3. KV Cache per Request</strong>
                 <code>KV bytes = context_len × L × 2 × H × bytes_per_elem</code>
-                <p>Where: <em>L</em> = transformer layers, <em>H</em> = hidden size, <em>2</em> = key + value, <em>bytes_per_elem</em> ≈ 2 (fp16/bf16).</p>
-                <p>Example (7B, L=32, H=4096, fp16, 8K context): 8192 × 32 × 2 × 4096 × 2 bytes ≈ <strong>4.0GB</strong> raw KV. With 20% overhead → <strong>4.8GB</strong> per request.</p>
+                <p>Where: <em>L</em> = transformer layers, <em>H</em> = hidden size, <em>2</em> = key + value,
+                    <em>bytes_per_elem</em> ≈ 2 (fp16/bf16).
+                </p>
+                <p>Example (7B, L=32, H=4096, fp16, 8K context): 8192 × 32 × 2 × 4096 × 2 bytes ≈ <strong>4.0GB</strong>
+                    raw KV. With 20% overhead → <strong>4.8GB</strong> per request.</p>
                 <p>This memory is needed for each active request's attention cache.</p>
             </div>
 
@@ -164,16 +167,23 @@
             <h4>Mixture-of-Experts (MoE) Models:</h4>
             <div class="step">
                 <strong>Special Handling for MoE Models</strong>
-                <p>MoE models (like Mixtral, DeepSeek V3/R1, Qwen3 MoE, Kimi K2, GLM-4.5) route tokens to a subset of experts per step.</p>
+                <p>MoE models (like Mixtral, DeepSeek V3/R1, Qwen3 MoE, Kimi K2, GLM-4.5) route tokens to a subset of
+                    experts per step.</p>
                 <ul>
                     <li><strong>Total Parameters:</strong> Full model size (e.g., Mixtral 8x7B = 56B total).</li>
                     <li><strong>Active Parameters:</strong> Experts activated per token (e.g., ~14B active).</li>
-                    <li><strong>Offloading Toggle:</strong> Use the "MoE Expert Offloading" checkbox to switch calculation modes:
+                    <li><strong>Offloading Toggle:</strong> Use the "MoE Expert Offloading" checkbox to switch
+                        calculation modes:
                         <br>• Offloading <em>OFF</em> (default): VRAM and performance use <em>total</em> model size.
-                        <br>• Offloading <em>ON</em>: VRAM and performance use <em>active experts</em>.</li>
-                    <li><strong>Why:</strong> Popular frameworks (vLLM, SGLang) do not offload inactive experts today. We model both regimes to prepare for future offloading support.</li>
+                        <br>• Offloading <em>ON</em>: VRAM and performance use <em>active experts</em>.
+                    </li>
+                    <li><strong>Why:</strong> Popular frameworks (vLLM, SGLang) do not offload inactive experts today.
+                        We model both regimes to prepare for future offloading support.</li>
                 </ul>
-                <p><strong>Example:</strong> Mixtral 8x7B shows "~94GB total, ~16GB active". With offloading <em>ON</em>, both VRAM and tokens/sec use ~16GB (active experts). With offloading <em>OFF</em>, both VRAM and tokens/sec use ~94GB (full model).</p>
+                <p><strong>Example:</strong> Mixtral 8x7B shows "~94GB total, ~16GB active". With offloading
+                    <em>ON</em>, both VRAM and tokens/sec use ~16GB (active experts). With offloading <em>OFF</em>, both
+                    VRAM and tokens/sec use ~94GB (full model).
+                </p>
             </div>
 
             <h4>Important Notes:</h4>
@@ -206,38 +216,49 @@
             <p><strong>Verdict:</strong> ⚠️ Heuristic, not physically or computationally accurate.</p>
             <p><strong>Why:</strong></p>
             <ul>
-                <li>Token generation speed is not directly proportional to <code>Memory Bandwidth / Model Size</code>.</li>
-                <li>While memory bandwidth is a major bottleneck in large-model inference, compute throughput (FLOPs) and kernel scheduling also limit performance.</li>
-                <li>Actual latency per token depends on matrix–vector multiplication performance, KV-cache access (bandwidth-bound), and framework efficiency (kernel fusion, parallelism).</li>
+                <li>Token generation speed is not directly proportional to <code>Memory Bandwidth / Model Size</code>.
+                </li>
+                <li>While memory bandwidth is a major bottleneck in large-model inference, compute throughput (FLOPs)
+                    and kernel scheduling also limit performance.</li>
+                <li>Actual latency per token depends on matrix–vector multiplication performance, KV-cache access
+                    (bandwidth-bound), and framework efficiency (kernel fusion, parallelism).</li>
             </ul>
-            <p>✅ <strong>Better framing:</strong> Use bandwidth as a dominant factor in memory-bound regimes (e.g., small batch, quantized, or large-context inference). Otherwise, both FLOPs and bandwidth matter. Treat this as a qualitative model.</p>
+            <p>✅ <strong>Better framing:</strong> Use bandwidth as a dominant factor in memory-bound regimes (e.g.,
+                small batch, quantized, or large-context inference). Otherwise, both FLOPs and bandwidth matter. Treat
+                this as a qualitative model.</p>
 
             <h4>Key Factors:</h4>
 
             <div class="step">
                 <strong>1. Memory Bandwidth</strong>
-                <p>GPU memory bandwidth is often the primary bottleneck for LLM inference when compute is underutilized (especially during decoding).</p>
+                <p>GPU memory bandwidth is often the primary bottleneck for LLM inference when compute is underutilized
+                    (especially during decoding).</p>
                 <ul>
                     <li>RTX 4090: 1,008 GB/s (typical)</li>
                     <li>A100 (80GB HBM2e): 2,039 GB/s (upper range)</li>
                     <li>H100 (80GB HBM3): ~3,350 GB/s</li>
                 </ul>
-                <p>✔ For large transformer inference, bandwidth is a critical limiting factor once compute is underutilized.</p>
+                <p>✔ For large transformer inference, bandwidth is a critical limiting factor once compute is
+                    underutilized.</p>
             </div>
 
             <div class="step">
                 <strong>2. Model Size Efficiency</strong>
-                <p>Memory bandwidth utilization tends to drop for larger models because of increased layer depth, activation sizes, and less cache reuse; typical efficiency ranges 30–85% depending on model size and inference engine.</p>
+                <p>Memory bandwidth utilization tends to drop for larger models because of increased layer depth,
+                    activation sizes, and less cache reuse; typical efficiency ranges 30–85% depending on model size and
+                    inference engine.</p>
                 <p><strong>Notes:</strong></p>
                 <ul>
                     <li>Smaller models can better fit in cache (L2, HBM, registers) → higher efficiency.</li>
-                    <li>Utilization depends strongly on batch size, sequence length, and kernel fusion—not parameter count alone.</li>
+                    <li>Utilization depends strongly on batch size, sequence length, and kernel fusion—not parameter
+                        count alone.</li>
                 </ul>
             </div>
 
             <div class="step">
                 <strong>3. Quantization Speed Boost</strong>
-                <p>Lower precision primarily saves memory bandwidth and can accelerate GEMM ops when hardware supports low-precision tensor cores. Typical ranges on NVIDIA GPUs:</p>
+                <p>Lower precision primarily saves memory bandwidth and can accelerate GEMM ops when hardware supports
+                    low-precision tensor cores. Typical ranges on NVIDIA GPUs:</p>
                 <ul>
                     <li>INT8: 1.3×–1.5× vs FP16</li>
                     <li>INT4: 1.6×–2.0× vs FP16 (kernel/framework dependent)</li>
@@ -248,8 +269,10 @@
 
             <div class="step">
                 <strong>4. Context Length Impact</strong>
-                <p>Throughput declines with longer context windows due to larger KV-cache bandwidth demands; typical degradation is 15–70% as context extends from 8K to 128K tokens.</p>
-                <p><strong>Depends on:</strong> attention implementation (e.g., FlashAttention v1/v2/v3), batch size, and streaming optimizations.</p>
+                <p>Throughput declines with longer context windows due to larger KV-cache bandwidth demands; typical
+                    degradation is 15–70% as context extends from 8K to 128K tokens.</p>
+                <p><strong>Depends on:</strong> attention implementation (e.g., FlashAttention v1/v2/v3), batch size,
+                    and streaming optimizations.</p>
             </div>
 
             <div class="step">
@@ -264,21 +287,26 @@
 
             <h4>Important Considerations:</h4>
             <ul>
-                <li><strong>Framework matters (vLLM, TGI, Ollama):</strong> They differ in KV-cache management, batching, and fused kernels.</li>
+                <li><strong>Framework matters (vLLM, TGI, Ollama):</strong> They differ in KV-cache management,
+                    batching, and fused kernels.</li>
                 <li><strong>Batch size affects throughput:</strong> Larger batches → higher GPU utilization.</li>
                 <li><strong>First token slower:</strong> Prompt prefill cost dominates.</li>
-                <li><strong>Real-world variance:</strong> Throughput varies ±20% due to scheduling, framework, and CUDA version.</li>
-                <li><strong>Professional GPUs:</strong> A100/H100 have better memory subsystems than consumer cards.</li>
+                <li><strong>Real-world variance:</strong> Throughput varies ±20% due to scheduling, framework, and CUDA
+                    version.</li>
+                <li><strong>Professional GPUs:</strong> A100/H100 have better memory subsystems than consumer cards.
+                </li>
             </ul>
 
             <h4>MoE Handling:</h4>
             <div class="step">
-                <p>MoE models activate only a subset of experts per token. The calculator exposes an offloading toggle to align both memory and performance calculations:</p>
+                <p>MoE models activate only a subset of experts per token. The calculator exposes an offloading toggle
+                    to align both memory and performance calculations:</p>
                 <ul>
                     <li><strong>Offloading OFF:</strong> Tokens/sec and VRAM use <em>total</em> model size.</li>
                     <li><strong>Offloading ON:</strong> Tokens/sec and VRAM use <em>active experts</em>.</li>
                 </ul>
-                <p><em>Note:</em> Real-world behavior depends on your framework. This mode assumes inactive experts are offloaded and not consuming bandwidth or VRAM.</p>
+                <p><em>Note:</em> Real-world behavior depends on your framework. This mode assumes inactive experts are
+                    offloaded and not consuming bandwidth or VRAM.</p>
             </div>
 
             <h4>Performance Ratings:</h4>
@@ -375,11 +403,21 @@
                             <option value="22" data-memory="470" data-active-memory="44" data-quant="0.5">Qwen3
                                 235B-A22B MoE (~470GB total, ~44GB active)</option>
                         </optgroup>
+                        <optgroup label="Alibaba Qwen 3.5 (2026)">
+                            <option value="17" data-memory="794" data-active-memory="34" data-quant="0.5">Qwen3.5
+                                397B-A17B MoE (~794GB total, ~34GB active)</option>
+                            <option value="10" data-memory="250" data-active-memory="20" data-quant="0.5">Qwen3.5
+                                125B-A10B MoE (~250GB total, ~20GB active)</option>
+                        </optgroup>
                         <optgroup label="Moonshot AI Kimi (2025)">
                             <option value="32" data-memory="2000" data-active-memory="64" data-quant="0.5">Kimi K2 Base
                                 1T (~2000GB total, ~64GB active)</option>
                             <option value="32" data-memory="2000" data-active-memory="64" data-quant="0.5">Kimi K2
                                 Instruct 1T (~2000GB total, ~64GB active)</option>
+                        </optgroup>
+                        <optgroup label="Moonshot AI Kimi (2026)">
+                            <option value="32" data-memory="2000" data-active-memory="64" data-quant="0.5">Kimi 2.5
+                                1T (~2000GB total, ~64GB active)</option>
                         </optgroup>
                         <optgroup label="Qwen Coder">
                             <option value="1.5" data-memory="3" data-quant="1.0">Qwen-Coder 1.5B (~3GB)</option>
@@ -439,7 +477,8 @@
                             <option value="0.56" data-memory="1.12" data-quant="1.0">BGE-M3 560M (~1.12GB)</option>
                             <option value="8" data-memory="16" data-quant="1.0">Qwen3 Embedding 8B (~16GB)</option>
                             <option value="4" data-memory="8" data-quant="1.0">Qwen3 Embedding 4B (~8GB)</option>
-                            <option value="0.6" data-memory="1.2" data-quant="1.0">Qwen3 Embedding 0.6B (~1.2GB)</option>
+                            <option value="0.6" data-memory="1.2" data-quant="1.0">Qwen3 Embedding 0.6B (~1.2GB)
+                            </option>
                             <option value="8" data-memory="16" data-quant="1.0">Qwen3 Reranker 8B (~16GB)</option>
                             <option value="4" data-memory="8" data-quant="1.0">Qwen3 Reranker 4B (~8GB)</option>
                             <option value="0.6" data-memory="1.2" data-quant="1.0">Qwen3 Reranker 0.6B (~1.2GB)</option>
@@ -454,6 +493,12 @@
                             <option value="32" data-memory="355" data-active-memory="64" data-quant="0.5">GLM-4.5 MoE
                                 (~355GB total, ~64GB active)</option>
                         </optgroup>
+                        <optgroup label="Zhipu AI GLM (2026)">
+                            <option value="36" data-memory="380" data-active-memory="68" data-quant="0.5">GLM-4.7 MoE
+                                (~380GB total, ~68GB active)</option>
+                            <option value="48" data-memory="500" data-active-memory="90" data-quant="0.5">GLM-5 MoE
+                                (~500GB total, ~90GB active)</option>
+                        </optgroup>
                         <optgroup label="Google Gemma 3 (2025)">
                             <option value="0.27" data-memory="0.5" data-quant="1.0">Gemma 3 270M (~0.5GB)</option>
                             <option value="1" data-memory="2" data-quant="1.0">Gemma 3 1B (~2GB)</option>
@@ -465,6 +510,9 @@
                             <option value="3.8" data-memory="7.6" data-quant="1.0">Phi-3 Mini 3.8B (~7.6GB)</option>
                             <option value="7" data-memory="14" data-quant="1.0">Phi-3 Small 7B (~14GB)</option>
                             <option value="14" data-memory="28" data-quant="1.0">Phi-3 Medium 14B (~28GB)</option>
+                        </optgroup>
+                        <optgroup label="StepFun (2026)">
+                            <option value="120" data-memory="240" data-quant="0.5">StepFun Large 120B (~240GB)</option>
                         </optgroup>
                         <optgroup label="Other Models">
                             <option value="6" data-memory="12" data-quant="1.0">Yi 6B (~12GB)</option>
@@ -507,7 +555,10 @@
                             <span>Enable offloading for MoE models</span>
                         </label>
                     </div>
-                    <small class="help-text">Default: off. When disabled, MoE models use <em>total memory</em> for both VRAM and performance. When enabled, MoE models use <em>active experts</em> for both VRAM and performance. Applies only to MoE presets (e.g., Mixtral, DeepSeek V3/R1, Kimi K2, GLM-4.5).</small>
+                    <small class="help-text">Default: off. When disabled, MoE models use <em>total memory</em> for both
+                        VRAM and performance. When enabled, MoE models use <em>active experts</em> for both VRAM and
+                        performance. Applies only to MoE presets (e.g., Mixtral, DeepSeek V3/R1, Kimi K2,
+                        GLM-4.5).</small>
                 </div>
 
                 <div class="form-group radio-group accent-box">
@@ -641,10 +692,12 @@
                 </div>
             </div>
             <!-- Filters -->
-            <div id="scenario-filters" class="mt-2 mb-2" style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; align-items:center;">
+            <div id="scenario-filters" class="mt-2 mb-2"
+                style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:12px; align-items:center;">
                 <div style="display:flex; gap:8px; align-items:center;">
                     <label class="text-soft-gray/80" for="scenario-filter-context">Context:</label>
-                    <select id="scenario-filter-context" class="bg-deep-charcoal text-soft-gray px-2 py-1 rounded w-full">
+                    <select id="scenario-filter-context"
+                        class="bg-deep-charcoal text-soft-gray px-2 py-1 rounded w-full">
                         <option value="all">All</option>
                         <option value="8192">8K</option>
                         <option value="16384">16K</option>
@@ -655,30 +708,78 @@
                 </div>
                 <div style="display:flex; gap:8px; align-items:center;">
                     <label class="text-soft-gray/80" for="scenario-filter-min-tps">Min tokens/sec:</label>
-                    <input id="scenario-filter-min-tps" type="number" min="0" step="0.1" placeholder="e.g. 10" class="bg-deep-charcoal text-soft-gray px-2 py-1 rounded w-full" />
+                    <input id="scenario-filter-min-tps" type="number" min="0" step="0.1" placeholder="e.g. 10"
+                        class="bg-deep-charcoal text-soft-gray px-2 py-1 rounded w-full" />
                 </div>
             </div>
             <style>
-                #scenario-table { border-collapse: collapse; }
-                #scenario-table th, #scenario-table td { border-bottom: 1px solid rgba(226, 232, 240, 0.2); }
-                #scenario-table thead th { font-weight: 700; }
-                #scenario-table thead th .sort-icons { display: inline-flex; flex-direction: column; margin-left: 6px; font-size: 10px; line-height: 10px; }
-                #scenario-table thead th .sort-icons span { opacity: 0.35; }
-                #scenario-table thead th.sorted-asc .sort-icons .up { opacity: 1; }
-                #scenario-table thead th.sorted-desc .sort-icons .down { opacity: 1; }
+                #scenario-table {
+                    border-collapse: collapse;
+                }
+
+                #scenario-table th,
+                #scenario-table td {
+                    border-bottom: 1px solid rgba(226, 232, 240, 0.2);
+                }
+
+                #scenario-table thead th {
+                    font-weight: 700;
+                }
+
+                #scenario-table thead th .sort-icons {
+                    display: inline-flex;
+                    flex-direction: column;
+                    margin-left: 6px;
+                    font-size: 10px;
+                    line-height: 10px;
+                }
+
+                #scenario-table thead th .sort-icons span {
+                    opacity: 0.35;
+                }
+
+                #scenario-table thead th.sorted-asc .sort-icons .up {
+                    opacity: 1;
+                }
+
+                #scenario-table thead th.sorted-desc .sort-icons .down {
+                    opacity: 1;
+                }
             </style>
             <div class="overflow-x-auto">
                 <table id="scenario-table" class="w-full text-left text-soft-gray">
                     <thead>
                         <tr>
-                            <th class="py-2 pr-3 cursor-pointer" data-key="model" title="Click to sort"><span>Model</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
-                            <th class="py-2 pr-3 cursor-pointer" data-key="gpu" title="Click to sort"><span>GPU</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
-                            <th class="py-2 pr-3 cursor-pointer" data-key="gpuCount" title="Click to sort"><span># GPUs</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
-                            <th class="py-2 pr-3 cursor-pointer" data-key="quant" title="Click to sort"><span>Quantization</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
-                            <th class="py-2 pr-3 cursor-pointer" data-key="context" title="Click to sort"><span>Context</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
-                            <th class="py-2 pr-3 cursor-pointer" data-key="maxConcurrent" title="Click to sort"><span>Max Concurrent</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
-                            <th class="py-2 pr-3 cursor-pointer" data-key="tokensPerSec" title="Click to sort"><span>Tokens/sec</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
-                            <th class="py-2 pr-3 cursor-pointer" data-key="genTimeNum" title="Click to sort"><span>Time for 100 tokens</span><span class="sort-icons"><span class="up">▲</span><span class="down">▼</span></span></th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="model" title="Click to sort">
+                                <span>Model</span><span class="sort-icons"><span class="up">▲</span><span
+                                        class="down">▼</span></span>
+                            </th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="gpu" title="Click to sort">
+                                <span>GPU</span><span class="sort-icons"><span class="up">▲</span><span
+                                        class="down">▼</span></span>
+                            </th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="gpuCount" title="Click to sort"><span>#
+                                    GPUs</span><span class="sort-icons"><span class="up">▲</span><span
+                                        class="down">▼</span></span></th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="quant" title="Click to sort">
+                                <span>Quantization</span><span class="sort-icons"><span class="up">▲</span><span
+                                        class="down">▼</span></span>
+                            </th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="context" title="Click to sort">
+                                <span>Context</span><span class="sort-icons"><span class="up">▲</span><span
+                                        class="down">▼</span></span>
+                            </th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="maxConcurrent" title="Click to sort">
+                                <span>Max Concurrent</span><span class="sort-icons"><span class="up">▲</span><span
+                                        class="down">▼</span></span>
+                            </th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="tokensPerSec" title="Click to sort">
+                                <span>Tokens/sec</span><span class="sort-icons"><span class="up">▲</span><span
+                                        class="down">▼</span></span>
+                            </th>
+                            <th class="py-2 pr-3 cursor-pointer" data-key="genTimeNum" title="Click to sort"><span>Time
+                                    for 100 tokens</span><span class="sort-icons"><span class="up">▲</span><span
+                                        class="down">▼</span></span></th>
                         </tr>
                     </thead>
                     <tbody>

@@ -800,8 +800,7 @@
       "https://ollama.com/library/deepseek-r1"
     ],
     "notes": "Largest distilled model, 94.5% on MATH-500, dense model SOTA"
-  }
-  ,
+  },
   {
     "model_name": "Mistral Voxtral-3B",
     "release_date": "2025-01",
@@ -1182,5 +1181,116 @@
       "https://github.com/QwenLM/Qwen3"
     ],
     "notes": "Lightweight embedding model for cost-effective semantic tasks"
+  },
+  {
+    "model_name": "Qwen3.5-397B-A17B",
+    "release_date": "2026-03",
+    "organization": "Alibaba Cloud / Qwen team",
+    "logo_path": "resources/alibaba.png",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 397,
+    "num_layers": null,
+    "hidden_size": null,
+    "num_attention_heads": null,
+    "vocab_size": null,
+    "precision_supported": [
+      "BF16",
+      "FP8"
+    ],
+    "context_length": 256000,
+    "quantization_available": true,
+    "quantization_types": [
+      "1-bit",
+      "2-bit",
+      "3-bit",
+      "4-bit",
+      "5-bit",
+      "6-bit",
+      "7-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": 128,
+      "active_experts": 17,
+      "expert_parallelism": true
+    },
+    "serving_frameworks": [
+      "vLLM",
+      "TensorRT-LLM",
+      "SGLang",
+      "Ollama",
+      "llama.cpp"
+    ],
+    "recommended_gpu": [
+      "A100",
+      "H100",
+      "H200"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 32768,
+    "memory_footprint_gb": null,
+    "license": "Apache 2.0",
+    "source_links": [
+      "qwen.ai",
+      "huggingface.co"
+    ],
+    "notes": "MoE with 17 active experts; ~397B total parameters"
+  },
+  {
+    "model_name": "Qwen3.5-125B-A10B",
+    "release_date": "2026-03",
+    "organization": "Alibaba Cloud / Qwen team",
+    "logo_path": "resources/alibaba.png",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 125,
+    "num_layers": null,
+    "hidden_size": null,
+    "num_attention_heads": null,
+    "vocab_size": null,
+    "precision_supported": [
+      "BF16",
+      "FP8"
+    ],
+    "context_length": 256000,
+    "quantization_available": true,
+    "quantization_types": [
+      "1-bit",
+      "2-bit",
+      "3-bit",
+      "4-bit",
+      "5-bit",
+      "6-bit",
+      "7-bit",
+      "8-bit"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": 128,
+      "active_experts": 10,
+      "expert_parallelism": true
+    },
+    "serving_frameworks": [
+      "vLLM",
+      "TensorRT-LLM",
+      "SGLang",
+      "Ollama",
+      "llama.cpp"
+    ],
+    "recommended_gpu": [
+      "A100",
+      "H100"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": 32768,
+    "memory_footprint_gb": null,
+    "license": "Apache 2.0",
+    "source_links": [
+      "qwen.ai",
+      "huggingface.co"
+    ],
+    "notes": "MoE with 10 active experts; ~125B total parameters"
   }
 ]
