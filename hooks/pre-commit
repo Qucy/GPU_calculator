@@ -1,0 +1,3 @@
+#!/bin/sh
+# Run unit tests before every commit. Enabled via `git config core.hooksPath hooks`.
+exec bash scripts/test.sh

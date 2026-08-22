@@ -1,7 +1,69 @@
 // GPU Calculator Pro - Main JavaScript Engine
 // Advanced GPU requirements calculator with real-time updates and visual effects
 
+// ===== Tunable constants (hoisted from inline literals; values unchanged) =====
+const RECOMMENDATION_LIMIT = 5;          // max GPU recommendations shown
+const CONCURRENCY_MAX = 1000;            // concurrency input clamp
+const GPU_COUNT_MAX = 128;               // GPU count input clamp
+const EFFICIENCY_INT8_FP8 = 0.85;        // throughput efficiency for int8/fp8
+const EFFICIENCY_INT4 = 0.9;             // throughput efficiency for int4
+const EFFICIENCY_DEFAULT = 0.7;          // throughput efficiency for fp16/bf16 and fallback
+const ANIMATE_VALUE_MS = 800;            // anime.js duration for metric counters
+const SCROLL_REVEAL_MS = 800;            // anime.js duration for scroll-in animations
+const HOVER_LIFT_MS = 300;               // anime.js duration for hover lift effects
+const PAGE_SLIDE_OUT_MS = 250;           // anime.js duration for SPA page exit
+const PAGE_SLIDE_IN_MS = 300;            // anime.js duration for SPA page entrance
+
+// ===== Catalog table column definitions =====
+// align: 'left' | 'right' (maps to text-left / text-right header classes)
+const GPU_TABLE_COLUMNS = [
+    { key: 'name', label: 'GPU', align: 'left' },
+    { key: 'vendor', label: 'Vendor', align: 'left' },
+    { key: 'architecture', label: 'Architecture', align: 'left' },
+    { key: 'process_node', label: 'Process', align: 'left' },
+    { key: 'memory_gb', label: 'Memory (GB)', align: 'right' },
+    { key: 'memory_type', label: 'Memory Type', align: 'left' },
+    { key: 'memory_bandwidth_tbps', label: 'Bandwidth (TB/s)', align: 'right' },
+    { key: 'fp32_tflops', label: 'FP32 TFLOPs', align: 'right' },
+    { key: 'int8_tops', label: 'INT8 TOPS', align: 'right' },
+    { key: 'tdp_w', label: 'TDP (W)', align: 'right' },
+    { key: 'price_usd', label: 'Price (USD)', align: 'right' },
+    { key: 'fp16_tflops', label: 'FP16 TFLOPs', align: 'right' },
+    { key: 'nvlink_bandwidth_gbs', label: 'NVLink (GB/s)', align: 'right' },
+    { key: 'pcie_generation', label: 'PCIe Gen', align: 'left' },
+    { key: 'release_year', label: 'Release', align: 'right' },
+    { key: 'mig_support', label: 'MIG', align: 'left' },
+    { key: 'transformer_engine', label: 'Transformer Engine', align: 'left' },
+    { key: 'cuda_cores', label: 'CUDA Cores', align: 'right' },
+    { key: 'tensor_cores', label: 'Tensor Cores', align: 'left' },
+    { key: 'rt_cores', label: 'RT Cores', align: 'left' },
+    { key: 'price_rmb', label: 'Price (RMB)', align: 'right' }
+];
+
+const LLM_TABLE_COLUMNS = [
+    { key: 'model_name', label: 'Model', align: 'left' },
+    { key: 'release_date', label: 'Release', align: 'left' },
+    { key: 'params_b', label: 'Params (B)', align: 'right' },
+    { key: 'context_length', label: 'Context', align: 'right' },
+    { key: 'architecture_type', label: 'Architecture', align: 'left' },
+    { key: 'num_layers', label: 'Layers', align: 'right' },
+    { key: 'hidden_size', label: 'Hidden', align: 'right' },
+    { key: 'num_attention_heads', label: 'Heads', align: 'right' },
+    { key: 'vocab_size', label: 'Vocab', align: 'right' },
+    { key: 'organization', label: 'Organization', align: 'left' },
+    { key: 'precision_supported', label: 'Precision', align: 'left' },
+    { key: 'quantization_types', label: 'Quantization', align: 'left' },
+    { key: 'moe_summary', label: 'MoE', align: 'left' },
+    { key: 'serving_frameworks', label: 'Serving', align: 'left' },
+    { key: 'recommended_gpu', label: 'Recommended GPU', align: 'left' },
+    { key: 'throughput_tokens_per_sec_per_gpu', label: 'Throughput', align: 'right' },
+    { key: 'memory_footprint_gb', label: 'Memory (GB)', align: 'right' },
+    { key: 'license', label: 'License', align: 'left' },
+    { key: 'source_links', label: 'Sources', align: 'left' }
+];
+
 class GPUCalculator {
+    // ===== Section: Constructor (state and static data) =====
     constructor() {
         this.models = {
             'qwen-ds-7b': { params: 7.0e9, layers: 32, hiddenDim: 4096, heads: 32 },
@@ -88,51 +150,46 @@ class GPUCalculator {
         this.init();
     }
 
+    // ===== Section: Init =====
     init() {
         this.setupEventListeners();
         this.initializeAnimations();
-        this.initializeParticles();
         this.initializeMemoryChart();
         this.updateCalculations();
 
         // Load datasets and render catalogs
-        Promise.all([this.loadGPUData(), this.loadLLMData()]).then(() => {
-            // Initialize filtered data with all records
-            this.filteredGpuData = [...(this.gpuCatalogData || [])];
-            this.filteredLlmData = [...(this.llms || [])];
-
-            this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
-            this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
-            // Set initial full-width layout for both catalogs
-            this.setFullWidthLayout();
-            // Populate filter options after data is loaded
-            this.populateFilterOptions();
-            // Populate GPU model select in calculator
-            this.populateGPUModelSelect();
-            // Apply URL parameters after data and selects are ready
-            this.loadFromURL();
-        }).catch(() => {
-            // Initialize filtered data with empty arrays if loading fails
-            this.filteredGpuData = [];
-            this.filteredLlmData = [];
-
-            this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
-            this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
-            // Set initial full-width layout for both catalogs
-            this.setFullWidthLayout();
-            // Populate GPU model select from built-in list as fallback
-            this.populateGPUModelSelect();
-            // Apply URL parameters even if catalogs failed to load
-            this.loadFromURL();
-        });
+        Promise.all([this.loadGPUData(), this.loadLLMData()])
+            .then(() => this.initializeCatalogs(true))
+            .catch(() => this.initializeCatalogs(false));
 
         // Initialize SPA page navigation
         this.initPageNavigation();
     }
 
+    // Shared post-load setup for both the success and failure paths of catalog loading
+    initializeCatalogs(dataLoaded) {
+        // Initialize filtered data with all records (empty arrays if loading failed)
+        this.filteredGpuData = dataLoaded ? [...(this.gpuCatalogData || [])] : [];
+        this.filteredLlmData = dataLoaded ? [...(this.llms || [])] : [];
+
+        this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
+        this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
+        // Set initial full-width layout for both catalogs
+        this.setFullWidthLayout();
+        if (dataLoaded) {
+            // Populate filter options after data is loaded
+            this.populateFilterOptions();
+        }
+        // Populate GPU model select in calculator (falls back to built-in list)
+        this.populateGPUModelSelect();
+        // Apply URL parameters after data and selects are ready
+        this.loadFromURL();
+    }
+
+    // ===== Section: Event binding =====
     setupEventListeners() {
         // Model selection
-        const modelSelect = document.getElementById('model-select');
+        const modelSelect = this.el('model-select');
         if (modelSelect) {
             modelSelect.addEventListener('change', (e) => {
                 this.currentConfig.model = e.target.value;
@@ -140,7 +197,7 @@ class GPUCalculator {
                 // Clear custom params when not using custom model
                 if (this.currentConfig.model !== 'custom') {
                     this.currentConfig.customParams = null;
-                    const customInput = document.getElementById('custom-params');
+                    const customInput = this.el('custom-params');
                     if (customInput) customInput.value = '';
                 }
                 this.updateCalculations();
@@ -148,7 +205,7 @@ class GPUCalculator {
         }
 
         // Custom model parameters
-        const customParamsInput = document.getElementById('custom-params');
+        const customParamsInput = this.el('custom-params');
         if (customParamsInput) {
             customParamsInput.addEventListener('input', (e) => {
                 this.currentConfig.customParams = parseFloat(e.target.value) * 1e9;
@@ -166,11 +223,11 @@ class GPUCalculator {
         });
 
         // Context length slider
-        const contextSlider = document.getElementById('context-slider');
+        const contextSlider = this.el('context-slider');
         if (contextSlider) {
             contextSlider.addEventListener('input', (e) => {
                 this.currentConfig.contextLength = parseInt(e.target.value);
-                const ctxValEl = document.getElementById('context-value');
+                const ctxValEl = this.el('context-value');
                 if (ctxValEl) ctxValEl.textContent = this.formatNumber(this.currentConfig.contextLength);
                 this.updateCalculations();
             });
@@ -182,15 +239,15 @@ class GPUCalculator {
                 const val = parseInt(btn.getAttribute('data-context'));
                 this.currentConfig.contextLength = val;
                 if (contextSlider) contextSlider.value = val;
-                const ctxValEl = document.getElementById('context-value');
+                const ctxValEl = this.el('context-value');
                 if (ctxValEl) ctxValEl.textContent = this.formatNumber(val);
                 this.updateCalculations();
             });
         });
 
         // KV Cache Overhead slider
-        const kvOverheadSlider = document.getElementById('kv-overhead-slider');
-        const kvOverheadValueEl = document.getElementById('kv-overhead-value');
+        const kvOverheadSlider = this.el('kv-overhead-slider');
+        const kvOverheadValueEl = this.el('kv-overhead-value');
         if (kvOverheadSlider && kvOverheadValueEl) {
             kvOverheadSlider.addEventListener('input', (e) => {
                 const pct = Math.max(0, Math.min(100, parseInt(e.target.value)));
@@ -201,12 +258,12 @@ class GPUCalculator {
         }
 
         // Concurrency controls
-        const concInc = document.getElementById('concurrency-inc');
-        const concDec = document.getElementById('concurrency-dec');
-        const concInput = document.getElementById('concurrency-input');
+        const concInc = this.el('concurrency-inc');
+        const concDec = this.el('concurrency-dec');
+        const concInput = this.el('concurrency-input');
         if (concInc && concInput) {
             concInc.addEventListener('click', () => {
-                const value = Math.min(1000, parseInt(concInput.value) + 1);
+                const value = Math.min(CONCURRENCY_MAX, parseInt(concInput.value) + 1);
                 concInput.value = value;
                 this.currentConfig.concurrency = value;
                 this.updateCalculations();
@@ -222,7 +279,7 @@ class GPUCalculator {
         }
         if (concInput) {
             concInput.addEventListener('input', (e) => {
-                const value = Math.max(1, Math.min(1000, parseInt(e.target.value) || 1));
+                const value = Math.max(1, Math.min(CONCURRENCY_MAX, parseInt(e.target.value) || 1));
                 e.target.value = value;
                 this.currentConfig.concurrency = value;
                 this.updateCalculations();
@@ -230,11 +287,11 @@ class GPUCalculator {
         }
 
         // Batch size slider
-        const batchSlider = document.getElementById('batch-slider');
+        const batchSlider = this.el('batch-slider');
         if (batchSlider) {
             batchSlider.addEventListener('input', (e) => {
                 this.currentConfig.batchSize = parseInt(e.target.value);
-                const batchValEl = document.getElementById('batch-value');
+                const batchValEl = this.el('batch-value');
                 if (batchValEl) batchValEl.textContent = this.currentConfig.batchSize;
                 this.updateCalculations();
             });
@@ -246,19 +303,19 @@ class GPUCalculator {
                 const val = parseInt(btn.getAttribute('data-batch'));
                 this.currentConfig.batchSize = val;
                 if (batchSlider) batchSlider.value = val;
-                const batchValEl = document.getElementById('batch-value');
+                const batchValEl = this.el('batch-value');
                 if (batchValEl) batchValEl.textContent = String(val);
                 this.updateCalculations();
             });
         });
 
         // GPU count controls
-        const gpuCountInput = document.getElementById('gpu-count-input');
-        const gpuCountInc = document.getElementById('gpu-count-inc');
-        const gpuCountDec = document.getElementById('gpu-count-dec');
+        const gpuCountInput = this.el('gpu-count-input');
+        const gpuCountInc = this.el('gpu-count-inc');
+        const gpuCountDec = this.el('gpu-count-dec');
         if (gpuCountInput && gpuCountInc && gpuCountDec) {
             gpuCountInc.addEventListener('click', () => {
-                const value = Math.min(128, parseInt(gpuCountInput.value) + 1);
+                const value = Math.min(GPU_COUNT_MAX, parseInt(gpuCountInput.value) + 1);
                 gpuCountInput.value = value;
                 this.currentConfig.gpuCount = value;
                 this.updateCalculations();
@@ -270,7 +327,7 @@ class GPUCalculator {
                 this.updateCalculations();
             });
             gpuCountInput.addEventListener('input', (e) => {
-                const value = Math.max(1, Math.min(128, parseInt(e.target.value) || 1));
+                const value = Math.max(1, Math.min(GPU_COUNT_MAX, parseInt(e.target.value) || 1));
                 e.target.value = value;
                 this.currentConfig.gpuCount = value;
                 this.updateCalculations();
@@ -278,7 +335,7 @@ class GPUCalculator {
         }
 
         // GPU model select
-        const gpuModelSelect = document.getElementById('gpu-model-select');
+        const gpuModelSelect = this.el('gpu-model-select');
         if (gpuModelSelect) {
             gpuModelSelect.addEventListener('change', (e) => {
                 const name = e.target.value || '';
@@ -286,7 +343,7 @@ class GPUCalculator {
                 // When a GPU is selected, set VRAM per GPU automatically if available
                 const catalogGPU = this.resolveGPUByName(name);
                 const memoryGB = this.getMemoryGB(catalogGPU);
-                const vramInput = document.getElementById('vram-per-gpu');
+                const vramInput = this.el('vram-per-gpu');
                 if (vramInput && memoryGB) {
                     vramInput.value = memoryGB;
                     this.currentConfig.vramPerGPU = memoryGB;
@@ -296,7 +353,7 @@ class GPUCalculator {
         }
 
         // VRAM per GPU override
-        const vramPerGPUInput = document.getElementById('vram-per-gpu');
+        const vramPerGPUInput = this.el('vram-per-gpu');
         if (vramPerGPUInput) {
             vramPerGPUInput.addEventListener('input', (e) => {
                 const val = parseFloat(e.target.value);
@@ -306,7 +363,7 @@ class GPUCalculator {
         }
 
         // System overhead GB
-        const sysOverheadGBInput = document.getElementById('sys-overhead-gb');
+        const sysOverheadGBInput = this.el('sys-overhead-gb');
         if (sysOverheadGBInput) {
             sysOverheadGBInput.addEventListener('input', (e) => {
                 const val = parseFloat(e.target.value);
@@ -316,8 +373,8 @@ class GPUCalculator {
         }
 
         // System overhead slider
-        const overheadSlider = document.getElementById('sys-overhead-slider');
-        const overheadValueEl = document.getElementById('sys-overhead-value');
+        const overheadSlider = this.el('sys-overhead-slider');
+        const overheadValueEl = this.el('sys-overhead-value');
         if (overheadSlider && overheadValueEl) {
             overheadSlider.addEventListener('input', (e) => {
                 const pct = Math.max(0, Math.min(100, parseInt(e.target.value)));
@@ -328,7 +385,7 @@ class GPUCalculator {
         }
 
         // Theme toggle
-        const themeToggle = document.getElementById('theme-toggle');
+        const themeToggle = this.el('theme-toggle');
         if (themeToggle) {
             themeToggle.addEventListener('click', () => {
                 this.toggleTheme();
@@ -346,79 +403,29 @@ class GPUCalculator {
         });
 
         // GPU recommendations view toggle (sliding switch)
-        const gpuToggleBtn = document.getElementById('gpu-view-toggle');
-        const gpuToggleKnob = document.getElementById('gpu-view-knob');
-        if (gpuToggleBtn && gpuToggleKnob) {
-            const setTogglePosition = () => {
-                const isCards = this.gpuViewMode === 'cards';
-                gpuToggleBtn.classList.toggle('justify-start', isCards);
-                gpuToggleBtn.classList.toggle('justify-end', !isCards);
-                gpuToggleBtn.setAttribute('aria-pressed', isCards ? 'false' : 'true');
-            };
-
-            // Initialize position
-            setTogglePosition();
-
-            gpuToggleBtn.addEventListener('click', () => {
-                this.gpuViewMode = this.gpuViewMode === 'cards' ? 'table' : 'cards';
-                setTogglePosition();
-                this.updateCalculations();
-            });
-        }
+        this.setupViewToggle('gpu-view-toggle', 'gpu-view-knob', 'gpuViewMode', () => {
+            this.updateCalculations();
+        });
 
         // GPU catalog toggle (GPU page)
-        const catalogToggleBtn = document.getElementById('gpu-catalog-view-toggle');
-        const catalogToggleKnob = document.getElementById('gpu-catalog-view-knob');
-        if (catalogToggleBtn && catalogToggleKnob) {
-            const setCatalogToggle = () => {
-                const isCards = this.gpuCatalogViewMode === 'cards';
-                catalogToggleBtn.classList.toggle('justify-start', isCards);
-                catalogToggleBtn.classList.toggle('justify-end', !isCards);
-                catalogToggleBtn.setAttribute('aria-pressed', isCards ? 'false' : 'true');
-            };
-            setCatalogToggle();
-            catalogToggleBtn.addEventListener('click', () => {
-                this.gpuCatalogViewMode = this.gpuCatalogViewMode === 'cards' ? 'table' : 'cards';
-                setCatalogToggle();
-                this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
-                // Make both table and cards view take full width
-                const gpuWrapper = document.getElementById('gpu-catalog')?.parentElement;
-                if (gpuWrapper) {
-                    gpuWrapper.classList.add('xl:col-span-12');
-                    gpuWrapper.classList.remove('xl:col-span-8');
-                }
-            });
-        }
+        this.setupViewToggle('gpu-catalog-view-toggle', 'gpu-catalog-view-knob', 'gpuCatalogViewMode', () => {
+            this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
+            // Make both table and cards view take full width
+            this.setWrapperFullWidth('gpu-catalog');
+        });
 
         // LLM catalog toggle (Open Source Models page)
-        const llmToggleBtn = document.getElementById('llm-catalog-view-toggle');
-        const llmToggleKnob = document.getElementById('llm-catalog-view-knob');
-        if (llmToggleBtn && llmToggleKnob) {
-            const setLLMToggle = () => {
-                const isCards = this.llmCatalogViewMode === 'cards';
-                llmToggleBtn.classList.toggle('justify-start', isCards);
-                llmToggleBtn.classList.toggle('justify-end', !isCards);
-                llmToggleBtn.setAttribute('aria-pressed', isCards ? 'false' : 'true');
-            };
-            setLLMToggle();
-            llmToggleBtn.addEventListener('click', () => {
-                this.llmCatalogViewMode = this.llmCatalogViewMode === 'cards' ? 'table' : 'cards';
-                setLLMToggle();
-                this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
-                // Make both table and cards view take full width
-                const llmWrapper = document.getElementById('llm-catalog')?.parentElement;
-                if (llmWrapper) {
-                    llmWrapper.classList.add('xl:col-span-12');
-                    llmWrapper.classList.remove('xl:col-span-8');
-                }
-            });
-        }
+        this.setupViewToggle('llm-catalog-view-toggle', 'llm-catalog-view-knob', 'llmCatalogViewMode', () => {
+            this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
+            // Make both table and cards view take full width
+            this.setWrapperFullWidth('llm-catalog');
+        });
 
         // GPU Filter event listeners
-        const gpuVendorFilter = document.getElementById('gpu-vendor-filter');
-        const gpuArchFilter = document.getElementById('gpu-architecture-filter');
-        const gpuMemoryFilter = document.getElementById('gpu-memory-filter');
-        const gpuClearFilters = document.getElementById('gpu-clear-filters');
+        const gpuVendorFilter = this.el('gpu-vendor-filter');
+        const gpuArchFilter = this.el('gpu-architecture-filter');
+        const gpuMemoryFilter = this.el('gpu-memory-filter');
+        const gpuClearFilters = this.el('gpu-clear-filters');
 
         if (gpuVendorFilter) {
             gpuVendorFilter.addEventListener('change', (e) => {
@@ -445,10 +452,10 @@ class GPUCalculator {
         }
 
         // LLM Filter event listeners
-        const llmSizeFilter = document.getElementById('llm-size-filter');
-        const llmTypeFilter = document.getElementById('llm-type-filter');
-        const llmLicenseFilter = document.getElementById('llm-license-filter');
-        const llmClearFilters = document.getElementById('llm-clear-filters');
+        const llmSizeFilter = this.el('llm-size-filter');
+        const llmTypeFilter = this.el('llm-type-filter');
+        const llmLicenseFilter = this.el('llm-license-filter');
+        const llmClearFilters = this.el('llm-clear-filters');
 
         if (llmSizeFilter) {
             llmSizeFilter.addEventListener('change', (e) => {
@@ -475,9 +482,44 @@ class GPUCalculator {
         }
     }
 
+    // Shared wiring for the sliding cards/table view toggles.
+    // modeKey is the name of the view-mode property on this instance
+    // ('gpuViewMode', 'gpuCatalogViewMode', or 'llmCatalogViewMode').
+    setupViewToggle(toggleId, knobId, modeKey, onChange) {
+        const toggleBtn = this.el(toggleId);
+        const toggleKnob = this.el(knobId);
+        if (!toggleBtn || !toggleKnob) return;
+
+        const setTogglePosition = () => {
+            const isCards = this[modeKey] === 'cards';
+            toggleBtn.classList.toggle('justify-start', isCards);
+            toggleBtn.classList.toggle('justify-end', !isCards);
+            toggleBtn.setAttribute('aria-pressed', isCards ? 'false' : 'true');
+        };
+
+        // Initialize position
+        setTogglePosition();
+
+        toggleBtn.addEventListener('click', () => {
+            this[modeKey] = this[modeKey] === 'cards' ? 'table' : 'cards';
+            setTogglePosition();
+            onChange();
+        });
+    }
+
+    // ===== Section: UI helpers =====
+    el(id) {
+        return document.getElementById(id);
+    }
+
+    safeSet(id, value) {
+        const element = this.el(id);
+        if (element) element.textContent = value;
+    }
+
     toggleCustomModel() {
-        const customDiv = document.getElementById('custom-model-params');
-        const customInput = document.getElementById('custom-params');
+        const customDiv = this.el('custom-model-params');
+        const customInput = this.el('custom-params');
         if (this.currentConfig.model === 'custom') {
             if (customDiv) customDiv.classList.remove('hidden');
             // Initialize default custom params to 7B if unset
@@ -498,12 +540,12 @@ class GPUCalculator {
             const border = option.querySelector('.w-4');
 
             if (radio.value === this.currentConfig.quantization) {
-                border.classList.add('border-electric');
+                border.classList.add('border-accent');
                 border.classList.remove('border-soft-gray/50');
                 indicator.classList.add('scale-100');
                 indicator.classList.remove('scale-0');
             } else {
-                border.classList.remove('border-electric');
+                border.classList.remove('border-accent');
                 border.classList.add('border-soft-gray/50');
                 indicator.classList.remove('scale-100');
                 indicator.classList.add('scale-0');
@@ -511,6 +553,10 @@ class GPUCalculator {
         });
     }
 
+    // ===== Section: Calculation engine =====
+    // NOTE: the memory/architecture math below is intentionally mirrored in
+    // getGPURecommendations() and estimateLLMMemoryForPrecision() with slight
+    // per-call-site differences; keep the copies in sync when editing.
     calculateMemoryRequirements() {
         const model = this.models[this.currentConfig.model];
         const params = this.currentConfig.customParams || (model ? model.params : 7.0e9);
@@ -570,8 +616,9 @@ class GPUCalculator {
         const memoryBandwidth = referenceGPU.bandwidth; // GB/s
 
         // Computation efficiency per docs
-        const efficiencyFactor = this.currentConfig.quantization === 'int8' ? 0.85 :
-            this.currentConfig.quantization === 'int4' ? 0.9 : 0.7; // fp16/bf16 default to 0.7
+        // KNOWN ISSUE (preserved): references 'int4' though quantizationFactors has no 'int4' key.
+        const efficiencyFactor = this.currentConfig.quantization === 'int8' ? EFFICIENCY_INT8_FP8 :
+            this.currentConfig.quantization === 'int4' ? EFFICIENCY_INT4 : EFFICIENCY_DEFAULT; // fp16/bf16 default to 0.7
 
         // Tokens per second per documentation
         const tokensPerSecond = Math.max(1, memoryBandwidth / (memory.total * efficiencyFactor));
@@ -598,6 +645,7 @@ class GPUCalculator {
             (this.currentConfig.quantization === 'fp16' || this.currentConfig.quantization === 'bf16') ? 2 : 1;
 
         // Resolve architecture specs
+        // NOTE: this heuristic variant intentionally lacks `heads` (not needed here).
         let layers, hiddenDim;
         if (model) {
             ({ layers, hiddenDim } = model);
@@ -664,9 +712,10 @@ class GPUCalculator {
             return a.totalGPUsNeeded - b.totalGPUsNeeded;
         });
 
-        return recommendations.slice(0, 5);
+        return recommendations.slice(0, RECOMMENDATION_LIMIT);
     }
 
+    // NOTE: currently dormant — no caller/markup; kept intentionally.
     getOptimizationTips(memory, performance) {
         const tips = [];
 
@@ -713,6 +762,7 @@ class GPUCalculator {
         return tips;
     }
 
+    // ===== Section: Output rendering =====
     updateCalculations() {
         const memory = this.calculateMemoryRequirements();
         const performance = this.calculatePerformance(memory);
@@ -720,16 +770,12 @@ class GPUCalculator {
         const subtotal = (memory.weights + memory.cache + memory.activation);
 
         // Update memory display (safe)
-        const safeSet = (id, value) => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = value;
-        };
-        safeSet('weights-memory', `${memory.weights.toFixed(1)} GB`);
-        safeSet('cache-memory', `${memory.cache.toFixed(1)} GB`);
-        safeSet('activation-memory', `${memory.activation.toFixed(1)} GB`);
-        safeSet('overhead-memory', `${memory.overhead.toFixed(1)} GB`);
-        safeSet('subtotal-memory', `${subtotal.toFixed(1)} GB`);
-        safeSet('total-memory', `${memory.total.toFixed(1)} GB`);
+        this.safeSet('weights-memory', `${memory.weights.toFixed(1)} GB`);
+        this.safeSet('cache-memory', `${memory.cache.toFixed(1)} GB`);
+        this.safeSet('activation-memory', `${memory.activation.toFixed(1)} GB`);
+        this.safeSet('overhead-memory', `${memory.overhead.toFixed(1)} GB`);
+        this.safeSet('subtotal-memory', `${subtotal.toFixed(1)} GB`);
+        this.safeSet('total-memory', `${memory.total.toFixed(1)} GB`);
 
         // Update performance metrics
         this.animateValue('inference-speed', performance.inferenceSpeed);
@@ -739,21 +785,21 @@ class GPUCalculator {
         // Update parameter count
         const model = this.models[this.currentConfig.model];
         const params = this.currentConfig.customParams || (model ? model.params : 7.0e9);
-        safeSet('param-count', this.formatNumber((params || 7.0e9) / 1e9, 1) + 'B');
+        this.safeSet('param-count', this.formatNumber((params || 7.0e9) / 1e9, 1) + 'B');
 
-        safeSet('summary-total', `${memory.total.toFixed(1)} GB`);
-        safeSet('summary-subtotal', `${subtotal.toFixed(1)} GB`);
-        safeSet('summary-weights', `${memory.weights.toFixed(1)} GB`);
-        safeSet('summary-cache', `${memory.cache.toFixed(1)} GB`);
-        safeSet('summary-activation', `${memory.activation.toFixed(1)} GB`);
-        safeSet('summary-overhead', `${memory.overhead.toFixed(1)} GB`);
-        safeSet('summary-gpucount', String(this.currentConfig.gpuCount));
-        safeSet('summary-quant', (this.currentConfig.quantization || 'fp16').toUpperCase());
-        safeSet('summary-context', this.formatNumber(this.currentConfig.contextLength));
-        safeSet('summary-concurrency', String(this.currentConfig.concurrency));
-        safeSet('summary-batch', String(this.currentConfig.batchSize));
-        safeSet('summary-params', this.formatNumber((params || 7.0e9) / 1e9, 1) + 'B');
-        safeSet('summary-overhead-pct', `${this.currentConfig.sysOverheadPercent}%`);
+        this.safeSet('summary-total', `${memory.total.toFixed(1)} GB`);
+        this.safeSet('summary-subtotal', `${subtotal.toFixed(1)} GB`);
+        this.safeSet('summary-weights', `${memory.weights.toFixed(1)} GB`);
+        this.safeSet('summary-cache', `${memory.cache.toFixed(1)} GB`);
+        this.safeSet('summary-activation', `${memory.activation.toFixed(1)} GB`);
+        this.safeSet('summary-overhead', `${memory.overhead.toFixed(1)} GB`);
+        this.safeSet('summary-gpucount', String(this.currentConfig.gpuCount));
+        this.safeSet('summary-quant', (this.currentConfig.quantization || 'fp16').toUpperCase());
+        this.safeSet('summary-context', this.formatNumber(this.currentConfig.contextLength));
+        this.safeSet('summary-concurrency', String(this.currentConfig.concurrency));
+        this.safeSet('summary-batch', String(this.currentConfig.batchSize));
+        this.safeSet('summary-params', this.formatNumber((params || 7.0e9) / 1e9, 1) + 'B');
+        this.safeSet('summary-overhead-pct', `${this.currentConfig.sysOverheadPercent}%`);
 
         // Update GPU recommendations
         this.updateGPURecommendations(gpuRecommendations);
@@ -766,14 +812,14 @@ class GPUCalculator {
     }
 
     animateValue(elementId, targetValue) {
-        const element = document.getElementById(elementId);
+        const element = this.el(elementId);
         if (!element) return;
         const currentValue = parseInt(element.textContent) || 0;
 
         anime({
             targets: { value: currentValue },
             value: targetValue,
-            duration: 800,
+            duration: ANIMATE_VALUE_MS,
             easing: 'easeOutCubic',
             update: function (anim) {
                 element.textContent = Math.round(anim.animatables[0].target.value);
@@ -782,7 +828,7 @@ class GPUCalculator {
     }
 
     updateGPURecommendations(recommendations) {
-        const container = document.getElementById('gpu-recommendations');
+        const container = this.el('gpu-recommendations');
         if (!container) return;
         container.innerHTML = '';
 
@@ -844,8 +890,8 @@ class GPUCalculator {
 
             div.innerHTML = `
                 <div class="flex items-start space-x-4">
-                    <div class="w-12 h-12 bg-electric/20 rounded-lg flex items-center justify-center">
-                        <span class="text-electric font-bold text-sm">GPU</span>
+                    <div class="w-12 h-12 bg-accent/20 rounded-lg flex items-center justify-center">
+                        <span class="text-accent font-bold text-sm">GPU</span>
                     </div>
                     <div class="space-y-1">
                         <div class="font-semibold">${gpu.name}</div>
@@ -866,7 +912,36 @@ class GPUCalculator {
         });
     }
 
-    // ----- Data loading for catalogs -----
+    // NOTE: currently dormant — no caller/markup; kept intentionally.
+    updateOptimizationTips(tips) {
+        const container = this.el('optimization-tips');
+        container.innerHTML = '';
+
+        tips.forEach(tip => {
+            const div = document.createElement('div');
+            const colorClass = tip.type === 'success' ? 'border-sage' :
+                tip.type === 'warning' ? 'border-amber' : 'border-accent';
+            const iconClass = tip.type === 'success' ? 'text-sage' :
+                tip.type === 'warning' ? 'text-amber' : 'text-accent';
+
+            div.className = `p-4 bg-navy/50 rounded-lg border-l-4 ${colorClass}`;
+            div.innerHTML = `
+                <div class="flex items-start space-x-3">
+                    <div class="w-6 h-6 ${iconClass} flex items-center justify-center mt-0.5">
+                        ${tip.type === 'success' ? '✓' : tip.type === 'warning' ? '⚠' : 'ℹ'}
+                    </div>
+                    <div>
+                        <div class="font-semibold mb-1">${tip.title}</div>
+                        <div class="text-sm text-soft-gray/70">${tip.message}</div>
+                    </div>
+                </div>
+            `;
+
+            container.appendChild(div);
+        });
+    }
+
+    // ===== Section: Data loading =====
     async loadJSON(path) {
         try {
             const res = await fetch(path);
@@ -900,7 +975,7 @@ class GPUCalculator {
 
     // Populate GPU model select in calculator from catalog data or built-in list
     populateGPUModelSelect() {
-        const select = document.getElementById('gpu-model-select');
+        const select = this.el('gpu-model-select');
         if (!select) return;
         // Preserve current selection if any
         const prev = this.currentConfig.selectedGPUModelName || '';
@@ -921,7 +996,7 @@ class GPUCalculator {
         }
     }
 
-    // ==== Recommendation helpers (LLM ↔ GPU pairing) ====
+    // ===== Section: Pairing/estimate helpers (LLM ↔ GPU) =====
     bytesPerValueForPrecision(precision) {
         const p = (precision || '').toLowerCase();
         if (p === 'fp32') return 4;
@@ -989,6 +1064,7 @@ class GPUCalculator {
         const actOverheadFactor = (hiddenDim >= 8192 || layers >= 80) ? 1.2 : 1.0;
         const activationGB = (batch * ctx * hiddenDim * bytesPerValue * actOverheadFactor) / (1024 ** 3);
         const subtotal = weightsGB + cacheGB + activationGB;
+        // KNOWN ISSUE (preserved): hardcodes 0.3 overhead instead of currentConfig.sysOverheadPercent.
         const overheadGB = subtotal * 0.3;
         const totalGB = subtotal + overheadGB;
         return { weightsGB, cacheGB, activationGB, overheadGB, totalGB, layers, hiddenDim, ctx };
@@ -1005,10 +1081,10 @@ class GPUCalculator {
 
     efficiencyFactorForPrecision(precision) {
         const p = (precision || '').toLowerCase();
-        if (p === 'int8' || p === 'fp8') return 0.85;
-        if (p === 'int4') return 0.9;
+        if (p === 'int8' || p === 'fp8') return EFFICIENCY_INT8_FP8;
+        if (p === 'int4') return EFFICIENCY_INT4;
         // fp16/bf16 default
-        return 0.7;
+        return EFFICIENCY_DEFAULT;
     }
 
     estimateTokensPerSecondForPair(totalMemoryGB, gpu, precision, llmRefTps = null, refGpuGBps = null) {
@@ -1023,7 +1099,7 @@ class GPUCalculator {
         return Math.max(1, Math.round(bwGBps / (Math.max(1, totalMemoryGB) * eff)));
     }
 
-    // ----- Catalog sorting helpers -----
+    // ===== Section: Catalog sorting =====
     sortValues(a, b, dir = 'asc') {
         const isAsc = dir === 'asc';
         if (a == null && b == null) return 0;
@@ -1072,6 +1148,7 @@ class GPUCalculator {
 
     sortLLMList(list, key, dir = 'asc') {
         const paramsB = (m) => (m.parameter_count_billion ?? m.parameters_billion ?? m.parameters ?? null);
+        // KNOWN ISSUE (preserved): casing differs from renderLLMCatalog's moeSummary ('disabled' vs 'Disabled').
         const moeSummary = (m) => {
             const moe = m.moe || {};
             if (!moe.enabled) return 'disabled';
@@ -1108,7 +1185,7 @@ class GPUCalculator {
         return [...(Array.isArray(list) ? list : [])].sort((a, b) => this.sortValues(getVal(a), getVal(b), dir));
     }
 
-    // Generic GPU catalog renderer for both GPU and Models pages
+    // ===== Section: Logo helpers =====
     getVendorLogoPath(vendor) {
         const v = String(vendor || '').toLowerCase();
         if (v.includes('nvidia')) return 'resources/nvidia.png';
@@ -1137,54 +1214,61 @@ class GPUCalculator {
         return 'resources/icon-llm.svg';
     }
 
-    renderGPUCatalog(containerId, viewMode) {
-        const container = document.getElementById(containerId);
-        if (!container) return;
-        container.innerHTML = '';
+    // ===== Section: Catalog rendering =====
+    // Sort direction arrow for a header cell, based on the current sort state
+    sortIndicator(sortState, key) {
+        return (sortState && sortState.key === key) ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    }
 
-        if (viewMode === 'table') {
-            // Ensure the table spans the full panel width and supports horizontal scroll if needed
-            container.className = 'w-full overflow-x-auto';
-            // Render table of available GPUs
-            const table = document.createElement('table');
-            table.className = 'min-w-full w-full table-auto text-sm bg-navy/50 rounded-lg overflow-hidden';
+    sortableHeaderCell(col, sortState) {
+        const alignClass = col.align === 'right' ? 'text-right' : 'text-left';
+        return `                    <th data-sort-key="${col.key}" class="${alignClass} px-4 py-2 cursor-pointer select-none whitespace-nowrap">${col.label}${this.sortIndicator(sortState, col.key)}</th>`;
+    }
 
-            const thead = document.createElement('thead');
-            thead.className = 'bg-navy/70 text-soft-gray/80';
-            const indicator = (key) => (this.gpuCatalogSort && this.gpuCatalogSort.key === key) ? (this.gpuCatalogSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-            thead.innerHTML = `
+    // Build a sortable catalog table: shared shell (table + thead + tbody) for
+    // the GPU and LLM catalog table views. columns: [{ key, label, align }].
+    buildSortableTableShell(columns, rowsHtml, sortState) {
+        const table = document.createElement('table');
+        table.className = 'min-w-full w-full table-auto text-sm bg-white/5 rounded-lg overflow-hidden';
+
+        const thead = document.createElement('thead');
+        thead.className = 'bg-white/10 text-soft-gray/80';
+        thead.innerHTML = `
                 <tr>
-                    <th data-sort-key="name" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">GPU${indicator('name')}</th>
-                    <th data-sort-key="vendor" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Vendor${indicator('vendor')}</th>
-                    <th data-sort-key="architecture" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Architecture${indicator('architecture')}</th>
-                    <th data-sort-key="process_node" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Process${indicator('process_node')}</th>
-                    <th data-sort-key="memory_gb" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Memory (GB)${indicator('memory_gb')}</th>
-                    <th data-sort-key="memory_type" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Memory Type${indicator('memory_type')}</th>
-                    <th data-sort-key="memory_bandwidth_tbps" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Bandwidth (TB/s)${indicator('memory_bandwidth_tbps')}</th>
-                    <th data-sort-key="fp32_tflops" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">FP32 TFLOPs${indicator('fp32_tflops')}</th>
-                    <th data-sort-key="int8_tops" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">INT8 TOPS${indicator('int8_tops')}</th>
-                    <th data-sort-key="tdp_w" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">TDP (W)${indicator('tdp_w')}</th>
-                    <th data-sort-key="price_usd" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Price (USD)${indicator('price_usd')}</th>
-                    <th data-sort-key="fp16_tflops" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">FP16 TFLOPs${indicator('fp16_tflops')}</th>
-                    <th data-sort-key="nvlink_bandwidth_gbs" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">NVLink (GB/s)${indicator('nvlink_bandwidth_gbs')}</th>
-                    <th data-sort-key="pcie_generation" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">PCIe Gen${indicator('pcie_generation')}</th>
-                    <th data-sort-key="release_year" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Release${indicator('release_year')}</th>
-                    <th data-sort-key="mig_support" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">MIG${indicator('mig_support')}</th>
-                    <th data-sort-key="transformer_engine" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Transformer Engine${indicator('transformer_engine')}</th>
-                    <th data-sort-key="cuda_cores" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">CUDA Cores${indicator('cuda_cores')}</th>
-                    <th data-sort-key="tensor_cores" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Tensor Cores${indicator('tensor_cores')}</th>
-                    <th data-sort-key="rt_cores" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">RT Cores${indicator('rt_cores')}</th>
-                    <th data-sort-key="price_rmb" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Price (RMB)${indicator('price_rmb')}</th>
+${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
                 </tr>
             `;
-            table.appendChild(thead);
+        table.appendChild(thead);
 
-            const tbody = document.createElement('tbody');
-            const sorted = this.sortGPUList(this.filteredGpuData, this.gpuCatalogSort.key, this.gpuCatalogSort.dir);
-            sorted.forEach(gpu => {
-                const tr = document.createElement('tr');
-                tr.className = 'border-t border-soft-gray/10 hover:bg-navy/40';
-                tr.innerHTML = `
+        const tbody = document.createElement('tbody');
+        tbody.innerHTML = rowsHtml;
+        table.appendChild(tbody);
+        return table;
+    }
+
+    // Large stat tile used on catalog cards
+    statTile(label, value) {
+        return `
+                        <div class="p-2 bg-white/5 rounded">
+                            <div class="text-soft-gray/70">${label}</div>
+                            <div class="font-mono text-accent">${value}</div>
+                        </div>`;
+    }
+
+    // Small inline "Label: value" chip used on catalog cards
+    statChip(label, value, extraClass = '') {
+        return `<div class="p-2 bg-white/5 rounded${extraClass ? ' ' + extraClass : ''}">${label}: <span class="font-mono">${value}</span></div>`;
+    }
+
+    // Three-column grid row of stat tiles/chips.
+    // modifierClasses is the class tail, e.g. 'text-sm' or 'text-xs mt-2 text-soft-gray/70'.
+    statGridRow(cells, modifierClasses) {
+        return `<div class="grid grid-cols-3 gap-2 ${modifierClasses}">${cells.join('')}</div>`;
+    }
+
+    gpuCatalogRowHtml(gpu) {
+        return `
+                <tr class="border-t border-soft-gray/10 hover:bg-white/10">
                     <td class="px-4 py-2">${gpu.name || '-'}</td>
                     <td class="px-4 py-2">${gpu.vendor || '-'}</td>
                     <td class="px-4 py-2">${gpu.architecture || '-'}</td>
@@ -1206,13 +1290,162 @@ class GPUCalculator {
                     <td class="px-4 py-2">${gpu.tensor_cores || '-'}</td>
                     <td class="px-4 py-2">${gpu.rt_cores || '-'}</td>
                     <td class="px-4 py-2 text-right">${gpu.price_rmb ?? '-'}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-            table.appendChild(tbody);
-            container.appendChild(table);
+                </tr>`;
+    }
 
-            // Sorting handler (delegate to header cells)
+    gpuCatalogCardHtml(gpu) {
+        const perfPerW = (gpu.fp16_tflops && gpu.tdp_w && !isNaN(parseFloat(gpu.tdp_w))) ? (gpu.fp16_tflops / parseFloat(gpu.tdp_w)).toFixed(2) : null;
+        const perfPerDollar = (gpu.fp16_tflops && gpu.price_usd) ? (gpu.fp16_tflops / gpu.price_usd).toFixed(2) : null;
+        const logoSrc = this.getGpuLogoPath(gpu);
+        return `
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <img src="${logoSrc}" alt="${gpu.vendor || 'GPU'}" class="w-6 h-6 rounded-sm">
+                            <div class="font-semibold">${gpu.name || '-'}</div>
+                        </div>
+                        <div class="text-xs text-soft-gray/70">${gpu.vendor || ''}${gpu.architecture ? ' • ' + gpu.architecture : ''}</div>
+                    </div>
+                    <div class="text-xs text-soft-gray/60 mb-2">Process: ${gpu.process_node || '-'}</div>
+                    ${this.statGridRow([
+                        this.statTile('Memory', `${gpu.memory_gb ?? '-'} GB`),
+                        this.statTile('Bandwidth', `${gpu.memory_bandwidth_tbps ?? gpu.bandwidth_tbps ?? '-'} TB/s`),
+                        this.statTile('Memory Type', gpu.memory_type || '-')
+                    ], 'text-sm')}
+                    ${this.statGridRow([
+                        this.statTile('FP32 TFLOPs', gpu.fp32_tflops ?? '-'),
+                        this.statTile('INT8 TOPS', gpu.int8_tops ?? '-'),
+                        this.statTile('TDP (W)', gpu.tdp_w ?? '-')
+                    ], 'text-sm mt-2')}
+                    ${this.statGridRow([
+                        this.statChip('FP16 TFLOPs', gpu.fp16_tflops ?? '-'),
+                        this.statChip('NVLink', gpu.nvlink_bandwidth_gbs ?? '-'),
+                        this.statChip('PCIe', gpu.pcie_generation || '-')
+                    ], 'text-xs mt-2 text-soft-gray/70')}
+                    ${this.statGridRow([
+                        this.statChip('Release', gpu.release_year ?? '-'),
+                        this.statChip('MIG', gpu.mig_support || '-'),
+                        this.statChip('Transformer Engine', gpu.transformer_engine || '-')
+                    ], 'text-xs mt-2 text-soft-gray/70')}
+                    ${this.statGridRow([
+                        this.statChip('CUDA Cores', gpu.cuda_cores ?? '-'),
+                        this.statChip('Tensor Cores', gpu.tensor_cores || '-'),
+                        this.statChip('RT Cores', gpu.rt_cores || '-')
+                    ], 'text-xs mt-2 text-soft-gray/70')}
+                    ${this.statGridRow([
+                        this.statChip('Price', gpu.price_usd ?? '-'),
+                        this.statChip('Perf/W', perfPerW ?? '-'),
+                        this.statChip('Perf/$', perfPerDollar ?? '-')
+                    ], 'text-xs mt-2 text-soft-gray/70')}
+                    ${this.statGridRow([
+                        this.statChip('Price RMB', gpu.price_rmb ?? '-')
+                    ], 'text-xs mt-2 text-soft-gray/70')}
+                    ${gpu.notes ? `<div class="mt-2 text-xs text-soft-gray/60">${gpu.notes}</div>` : ''}
+                `;
+    }
+
+    // Shared LLM display formatters used by both the LLM table and card views
+    formatList(arr) {
+        return Array.isArray(arr) ? arr.join(', ') : (arr || '-');
+    }
+
+    llmParamsB(m) {
+        return (m.parameter_count_billion ?? m.parameters_billion ?? m.parameters ?? '-');
+    }
+
+    // KNOWN ISSUE (preserved): casing differs from sortLLMList's moeSummary ('Disabled' vs 'disabled').
+    llmMoeSummary(m) {
+        const moe = m.moe || {};
+        if (!moe.enabled) return 'Disabled';
+        const ne = moe.num_experts != null ? `E:${moe.num_experts}` : '';
+        const ae = moe.active_experts != null ? `A:${moe.active_experts}` : '';
+        const ep = moe.expert_parallelism ? moe.expert_parallelism : '';
+        return [ne, ae, ep].filter(Boolean).join(' ');
+    }
+
+    llmCatalogRowHtml(m) {
+        return `
+                <tr class="border-t border-soft-gray/10 hover:bg-white/10">
+                    <td class="px-4 py-2">${m.model_name || '-'}</td>
+                    <td class="px-4 py-2">${m.release_date || '-'}</td>
+                    <td class="px-4 py-2 text-right">${this.llmParamsB(m)}</td>
+                    <td class="px-4 py-2 text-right">${m.context_length ?? '-'}</td>
+                    <td class="px-4 py-2">${m.architecture_type || m.architecture || '-'}</td>
+                    <td class="px-4 py-2 text-right">${m.num_layers ?? '-'}</td>
+                    <td class="px-4 py-2 text-right">${m.hidden_size ?? '-'}</td>
+                    <td class="px-4 py-2 text-right">${m.num_attention_heads ?? '-'}</td>
+                    <td class="px-4 py-2 text-right">${m.vocab_size ?? '-'}</td>
+                    <td class="px-4 py-2">${m.organization || '-'}</td>
+                    <td class="px-4 py-2">${this.formatList(m.precision_supported)}</td>
+                    <td class="px-4 py-2">${this.formatList(m.quantization_types)}</td>
+                    <td class="px-4 py-2">${this.llmMoeSummary(m)}</td>
+                    <td class="px-4 py-2">${this.formatList(m.serving_frameworks)}</td>
+                    <td class="px-4 py-2">${this.formatList(m.recommended_gpu)}</td>
+                    <td class="px-4 py-2 text-right">${m.throughput_tokens_per_sec_per_gpu ?? '-'}</td>
+                    <td class="px-4 py-2 text-right">${m.memory_footprint_gb ?? '-'}</td>
+                    <td class="px-4 py-2">${m.license || '-'}</td>
+                    <td class="px-4 py-2">${this.formatList(m.source_links)}</td>
+                </tr>`;
+    }
+
+    llmCatalogCardHtml(m) {
+        const logoSrc = this.getLLMLogoPath(m);
+        return `
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <img src="${logoSrc}" alt="${m.organization || 'LLM'}" class="w-6 h-6 rounded-sm">
+                            <div class="font-semibold">${m.model_name || '-'}</div>
+                        </div>
+                        <div class="text-xs text-soft-gray/70">${m.organization || ''}</div>
+                    </div>
+                    <div class="text-xs text-soft-gray/60 mb-2">Release: ${m.release_date || '-'}</div>
+                    ${this.statGridRow([
+                        this.statTile('Params', `${this.llmParamsB(m)} B`),
+                        this.statTile('Context', m.context_length ?? '-'),
+                        this.statTile('Arch', m.architecture_type || m.architecture || '-')
+                    ], 'text-sm')}
+                    ${this.statGridRow([
+                        this.statTile('Precision', this.formatList(m.precision_supported)),
+                        this.statTile('Quantization', this.formatList(m.quantization_types)),
+                        this.statTile('MoE', this.llmMoeSummary(m))
+                    ], 'text-sm mt-2')}
+                    ${this.statGridRow([
+                        this.statTile('Layers', m.num_layers ?? '-'),
+                        this.statTile('Hidden', m.hidden_size ?? '-'),
+                        this.statTile('Heads', m.num_attention_heads ?? '-')
+                    ], 'text-sm mt-2')}
+                    ${this.statGridRow([
+                        this.statChip('Serving', this.formatList(m.serving_frameworks)),
+                        this.statChip('Rec. GPU', this.formatList(m.recommended_gpu)),
+                        this.statChip('License', m.license || '-')
+                    ], 'text-xs mt-2 text-soft-gray/70')}
+                    ${this.statGridRow([
+                        this.statChip('Throughput', m.throughput_tokens_per_sec_per_gpu ?? '-'),
+                        this.statChip('Memory', m.memory_footprint_gb ?? '-'),
+                        this.statChip('Seq Tested', m.sequence_length_tested ?? '-')
+                    ], 'text-xs mt-2 text-soft-gray/70')}
+                    ${this.statGridRow([
+                        this.statChip('Vocab', m.vocab_size ?? '-'),
+                        this.statChip('Sources', this.formatList(m.source_links), 'col-span-2')
+                    ], 'text-xs mt-2 text-soft-gray/70')}
+                    ${m.notes ? `<div class="mt-2 text-xs text-soft-gray/60">${m.notes}</div>` : ''}
+                `;
+    }
+
+    // Generic GPU catalog renderer for both GPU and Models pages
+    renderGPUCatalog(containerId, viewMode) {
+        const container = this.el(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (viewMode === 'table') {
+            // Ensure the table spans the full panel width and supports horizontal scroll if needed
+            container.className = 'w-full overflow-x-auto';
+            // Render table of available GPUs
+            const sorted = this.sortGPUList(this.filteredGpuData, this.gpuCatalogSort.key, this.gpuCatalogSort.dir);
+            const rowsHtml = sorted.map(gpu => this.gpuCatalogRowHtml(gpu)).join('');
+            container.appendChild(this.buildSortableTableShell(GPU_TABLE_COLUMNS, rowsHtml, this.gpuCatalogSort));
+
+            // Sorting handler (delegate to header cells; re-wired on each render)
             container.onclick = (e) => {
                 const th = e.target.closest('th[data-sort-key]');
                 if (!th) return;
@@ -1227,168 +1460,32 @@ class GPUCalculator {
             container.onclick = null; // disable table-specific handlers
             this.filteredGpuData.forEach(gpu => {
                 const card = document.createElement('div');
-                card.className = 'p-4 bg-navy/50 rounded-lg hover-lift border border-soft-gray/10';
-                const perfPerW = (gpu.fp16_tflops && gpu.tdp_w && !isNaN(parseFloat(gpu.tdp_w))) ? (gpu.fp16_tflops / parseFloat(gpu.tdp_w)).toFixed(2) : null;
-                const perfPerDollar = (gpu.fp16_tflops && gpu.price_usd) ? (gpu.fp16_tflops / gpu.price_usd).toFixed(2) : null;
-                const logoSrc = this.getGpuLogoPath(gpu);
-                card.innerHTML = `
-                    <div class="flex items-center justify-between mb-2">
-                        <div class="flex items-center gap-2">
-                            <img src="${logoSrc}" alt="${gpu.vendor || 'GPU'}" class="w-6 h-6 rounded-sm">
-                            <div class="font-semibold">${gpu.name || '-'}</div>
-                        </div>
-                        <div class="text-xs text-soft-gray/70">${gpu.vendor || ''}${gpu.architecture ? ' • ' + gpu.architecture : ''}</div>
-                    </div>
-                    <div class="text-xs text-soft-gray/60 mb-2">Process: ${gpu.process_node || '-'}</div>
-                    <div class="grid grid-cols-3 gap-2 text-sm">
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Memory</div>
-                            <div class="font-mono text-electric">${gpu.memory_gb ?? '-'} GB</div>
-                        </div>
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Bandwidth</div>
-                            <div class="font-mono text-electric">${gpu.memory_bandwidth_tbps ?? gpu.bandwidth_tbps ?? '-'} TB/s</div>
-                        </div>
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Memory Type</div>
-                            <div class="font-mono text-electric">${gpu.memory_type || '-'}</div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-sm mt-2">
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">FP32 TFLOPs</div>
-                            <div class="font-mono text-electric">${gpu.fp32_tflops ?? '-'}</div>
-                        </div>
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">INT8 TOPS</div>
-                            <div class="font-mono text-electric">${gpu.int8_tops ?? '-'}</div>
-                        </div>
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">TDP (W)</div>
-                            <div class="font-mono text-electric">${gpu.tdp_w ?? '-'}</div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-xs mt-2 text-soft-gray/70">
-                        <div class="p-2 bg-navy/30 rounded">FP16 TFLOPs: <span class="font-mono">${gpu.fp16_tflops ?? '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">NVLink: <span class="font-mono">${gpu.nvlink_bandwidth_gbs ?? '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">PCIe: <span class="font-mono">${gpu.pcie_generation || '-'}</span></div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-xs mt-2 text-soft-gray/70">
-                        <div class="p-2 bg-navy/30 rounded">Release: <span class="font-mono">${gpu.release_year ?? '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">MIG: <span class="font-mono">${gpu.mig_support || '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">Transformer Engine: <span class="font-mono">${gpu.transformer_engine || '-'}</span></div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-xs mt-2 text-soft-gray/70">
-                        <div class="p-2 bg-navy/30 rounded">CUDA Cores: <span class="font-mono">${gpu.cuda_cores ?? '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">Tensor Cores: <span class="font-mono">${gpu.tensor_cores || '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">RT Cores: <span class="font-mono">${gpu.rt_cores || '-'}</span></div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-xs mt-2 text-soft-gray/70">
-                        <div class="p-2 bg-navy/30 rounded">Price: <span class="font-mono">${gpu.price_usd ?? '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">Perf/W: <span class="font-mono">${perfPerW ?? '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">Perf/$: <span class="font-mono">${perfPerDollar ?? '-'}</span></div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-xs mt-2 text-soft-gray/70">
-                        <div class="p-2 bg-navy/30 rounded">Price RMB: <span class="font-mono">${gpu.price_rmb ?? '-'}</span></div>
-                    </div>
-                    ${gpu.notes ? `<div class="mt-2 text-xs text-soft-gray/60">${gpu.notes}</div>` : ''}
-                `;
+                card.className = 'p-4 bg-white/5 rounded-lg hover-lift border border-soft-gray/10';
+                card.innerHTML = this.gpuCatalogCardHtml(gpu);
                 // GPU card - no click handler needed
                 container.appendChild(card);
             });
         }
         // Adjust wrapper span so cards occupy full page width when in cards view
-        const wrapper = document.getElementById(containerId)?.parentElement;
-        if (wrapper) {
-            const isCards = viewMode === 'cards';
-            wrapper.classList.toggle('xl:col-span-12', isCards);
-            wrapper.classList.toggle('xl:col-span-8', !isCards);
-        }
+        this.setCatalogWrapperSpan(containerId, viewMode === 'cards');
     }
 
     // LLM catalog renderer (uses JSON-loaded llms)
     renderLLMCatalog(containerId, viewMode) {
-        const container = document.getElementById(containerId);
+        const container = this.el(containerId);
         if (!container) return;
         container.innerHTML = '';
 
         const list = this.filteredLlmData || [];
-        const fmtList = (arr) => Array.isArray(arr) ? arr.join(', ') : (arr || '-');
-        const paramsB = (m) => (m.parameter_count_billion ?? m.parameters_billion ?? m.parameters ?? '-');
-        const moeSummary = (m) => {
-            const moe = m.moe || {};
-            if (!moe.enabled) return 'Disabled';
-            const ne = moe.num_experts != null ? `E:${moe.num_experts}` : '';
-            const ae = moe.active_experts != null ? `A:${moe.active_experts}` : '';
-            const ep = moe.expert_parallelism ? moe.expert_parallelism : '';
-            return [ne, ae, ep].filter(Boolean).join(' ');
-        };
 
         if (viewMode === 'table') {
             // Ensure the table spans the full panel width and supports horizontal scroll if needed
             container.className = 'w-full overflow-x-auto';
-            const table = document.createElement('table');
-            table.className = 'min-w-full w-full table-auto text-sm bg-navy/50 rounded-lg overflow-hidden';
-
-            const thead = document.createElement('thead');
-            thead.className = 'bg-navy/70 text-soft-gray/80';
-            const indicator = (key) => (this.llmCatalogSort && this.llmCatalogSort.key === key) ? (this.llmCatalogSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
-            thead.innerHTML = `
-                <tr>
-                    <th data-sort-key="model_name" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Model${indicator('model_name')}</th>
-                    <th data-sort-key="release_date" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Release${indicator('release_date')}</th>
-                    <th data-sort-key="params_b" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Params (B)${indicator('params_b')}</th>
-                    <th data-sort-key="context_length" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Context${indicator('context_length')}</th>
-                    <th data-sort-key="architecture_type" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Architecture${indicator('architecture_type')}</th>
-                    <th data-sort-key="num_layers" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Layers${indicator('num_layers')}</th>
-                    <th data-sort-key="hidden_size" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Hidden${indicator('hidden_size')}</th>
-                    <th data-sort-key="num_attention_heads" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Heads${indicator('num_attention_heads')}</th>
-                    <th data-sort-key="vocab_size" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Vocab${indicator('vocab_size')}</th>
-                    <th data-sort-key="organization" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Organization${indicator('organization')}</th>
-                    <th data-sort-key="precision_supported" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Precision${indicator('precision_supported')}</th>
-                    <th data-sort-key="quantization_types" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Quantization${indicator('quantization_types')}</th>
-                    <th data-sort-key="moe_summary" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">MoE${indicator('moe_summary')}</th>
-                    <th data-sort-key="serving_frameworks" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Serving${indicator('serving_frameworks')}</th>
-                    <th data-sort-key="recommended_gpu" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Recommended GPU${indicator('recommended_gpu')}</th>
-                    <th data-sort-key="throughput_tokens_per_sec_per_gpu" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Throughput${indicator('throughput_tokens_per_sec_per_gpu')}</th>
-                    <th data-sort-key="memory_footprint_gb" class="text-right px-4 py-2 cursor-pointer select-none whitespace-nowrap">Memory (GB)${indicator('memory_footprint_gb')}</th>
-                    <th data-sort-key="license" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">License${indicator('license')}</th>
-                    <th data-sort-key="source_links" class="text-left px-4 py-2 cursor-pointer select-none whitespace-nowrap">Sources${indicator('source_links')}</th>
-                </tr>
-            `;
-            table.appendChild(thead);
-
-            const tbody = document.createElement('tbody');
             const sorted = this.sortLLMList(list, this.llmCatalogSort.key, this.llmCatalogSort.dir);
-            sorted.forEach(m => {
-                const tr = document.createElement('tr');
-                tr.className = 'border-t border-soft-gray/10 hover:bg-navy/40';
-                tr.innerHTML = `
-                    <td class="px-4 py-2">${m.model_name || '-'}</td>
-                    <td class="px-4 py-2">${m.release_date || '-'}</td>
-                    <td class="px-4 py-2 text-right">${paramsB(m)}</td>
-                    <td class="px-4 py-2 text-right">${m.context_length ?? '-'}</td>
-                    <td class="px-4 py-2">${m.architecture_type || m.architecture || '-'}</td>
-                    <td class="px-4 py-2 text-right">${m.num_layers ?? '-'}</td>
-                    <td class="px-4 py-2 text-right">${m.hidden_size ?? '-'}</td>
-                    <td class="px-4 py-2 text-right">${m.num_attention_heads ?? '-'}</td>
-                    <td class="px-4 py-2 text-right">${m.vocab_size ?? '-'}</td>
-                    <td class="px-4 py-2">${m.organization || '-'}</td>
-                    <td class="px-4 py-2">${fmtList(m.precision_supported)}</td>
-                    <td class="px-4 py-2">${fmtList(m.quantization_types)}</td>
-                    <td class="px-4 py-2">${moeSummary(m)}</td>
-                    <td class="px-4 py-2">${fmtList(m.serving_frameworks)}</td>
-                    <td class="px-4 py-2">${fmtList(m.recommended_gpu)}</td>
-                    <td class="px-4 py-2 text-right">${m.throughput_tokens_per_sec_per_gpu ?? '-'}</td>
-                    <td class="px-4 py-2 text-right">${m.memory_footprint_gb ?? '-'}</td>
-                    <td class="px-4 py-2">${m.license || '-'}</td>
-                    <td class="px-4 py-2">${fmtList(m.source_links)}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-            table.appendChild(tbody);
-            container.appendChild(table);
-            // Sorting handler (delegate to header cells)
+            const rowsHtml = sorted.map(m => this.llmCatalogRowHtml(m)).join('');
+            container.appendChild(this.buildSortableTableShell(LLM_TABLE_COLUMNS, rowsHtml, this.llmCatalogSort));
+
+            // Sorting handler (delegate to header cells; re-wired on each render)
             container.onclick = (e) => {
                 const th = e.target.closest('th[data-sort-key]');
                 if (!th) return;
@@ -1403,125 +1500,63 @@ class GPUCalculator {
             container.onclick = null; // disable table-specific handlers
             list.forEach(m => {
                 const card = document.createElement('div');
-                card.className = 'p-4 bg-navy/50 rounded-lg hover-lift border border-soft-gray/10';
-                const logoSrc = this.getLLMLogoPath(m);
-                card.innerHTML = `
-                    <div class="flex items-center justify-between mb-2">
-                        <div class="flex items-center gap-2">
-                            <img src="${logoSrc}" alt="${m.organization || 'LLM'}" class="w-6 h-6 rounded-sm">
-                            <div class="font-semibold">${m.model_name || '-'}</div>
-                        </div>
-                        <div class="text-xs text-soft-gray/70">${m.organization || ''}</div>
-                    </div>
-                    <div class="text-xs text-soft-gray/60 mb-2">Release: ${m.release_date || '-'}</div>
-                    <div class="grid grid-cols-3 gap-2 text-sm">
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Params</div>
-                            <div class="font-mono text-electric">${paramsB(m)} B</div>
-                        </div>
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Context</div>
-                            <div class="font-mono text-electric">${m.context_length ?? '-'}</div>
-                        </div>
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Arch</div>
-                            <div class="font-mono text-electric">${m.architecture_type || m.architecture || '-'}</div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-sm mt-2">
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Precision</div>
-                            <div class="font-mono text-electric">${fmtList(m.precision_supported)}</div>
-                        </div>
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Quantization</div>
-                            <div class="font-mono text-electric">${fmtList(m.quantization_types)}</div>
-                        </div>
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">MoE</div>
-                            <div class="font-mono text-electric">${moeSummary(m)}</div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-sm mt-2">
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Layers</div>
-                            <div class="font-mono text-electric">${m.num_layers ?? '-'}</div>
-                        </div>
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Hidden</div>
-                            <div class="font-mono text-electric">${m.hidden_size ?? '-'}</div>
-                        </div>
-                        <div class="p-2 bg-navy/40 rounded">
-                            <div class="text-soft-gray/70">Heads</div>
-                            <div class="font-mono text-electric">${m.num_attention_heads ?? '-'}</div>
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-xs mt-2 text-soft-gray/70">
-                        <div class="p-2 bg-navy/30 rounded">Serving: <span class="font-mono">${fmtList(m.serving_frameworks)}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">Rec. GPU: <span class="font-mono">${fmtList(m.recommended_gpu)}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">License: <span class="font-mono">${m.license || '-'}</span></div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-xs mt-2 text-soft-gray/70">
-                        <div class="p-2 bg-navy/30 rounded">Throughput: <span class="font-mono">${m.throughput_tokens_per_sec_per_gpu ?? '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">Memory: <span class="font-mono">${m.memory_footprint_gb ?? '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded">Seq Tested: <span class="font-mono">${m.sequence_length_tested ?? '-'}</span></div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-2 text-xs mt-2 text-soft-gray/70">
-                        <div class="p-2 bg-navy/30 rounded">Vocab: <span class="font-mono">${m.vocab_size ?? '-'}</span></div>
-                        <div class="p-2 bg-navy/30 rounded col-span-2">Sources: <span class="font-mono">${fmtList(m.source_links)}</span></div>
-                    </div>
-                    ${m.notes ? `<div class="mt-2 text-xs text-soft-gray/60">${m.notes}</div>` : ''}
-                `;
+                card.className = 'p-4 bg-white/5 rounded-lg hover-lift border border-soft-gray/10';
+                card.innerHTML = this.llmCatalogCardHtml(m);
                 // LLM card - no click handler needed
                 container.appendChild(card);
             });
         }
         // Adjust wrapper span so cards occupy full page width when in cards view
-        const wrapper = document.getElementById(containerId)?.parentElement;
-        if (wrapper) {
-            const isCards = viewMode === 'cards';
-            wrapper.classList.toggle('xl:col-span-12', isCards);
-            wrapper.classList.toggle('xl:col-span-8', !isCards);
-        }
+        this.setCatalogWrapperSpan(containerId, viewMode === 'cards');
     }
 
-    // ----- Sliding panel helpers -----
+    // ----- Sliding panel layout helpers -----
+    // Toggle a catalog wrapper between full width (cards) and 8/12 width (table)
+    setCatalogWrapperSpan(containerId, isCards) {
+        const wrapper = this.el(containerId)?.parentElement;
+        if (!wrapper) return;
+        wrapper.classList.toggle('xl:col-span-12', isCards);
+        wrapper.classList.toggle('xl:col-span-8', !isCards);
+    }
+
+    // Force a single catalog wrapper to full width
+    setWrapperFullWidth(containerId) {
+        const wrapper = this.el(containerId)?.parentElement;
+        if (!wrapper) return;
+        wrapper.classList.add('xl:col-span-12');
+        wrapper.classList.remove('xl:col-span-8');
+    }
+
     setFullWidthLayout() {
         // Set both GPU and LLM catalog wrappers to full width
-        const gpuWrapper = document.getElementById('gpu-catalog')?.parentElement;
-        if (gpuWrapper) {
-            gpuWrapper.classList.add('xl:col-span-12');
-            gpuWrapper.classList.remove('xl:col-span-8');
-        }
-        const llmWrapper = document.getElementById('llm-catalog')?.parentElement;
-        if (llmWrapper) {
-            llmWrapper.classList.add('xl:col-span-12');
-            llmWrapper.classList.remove('xl:col-span-8');
-        }
+        this.setWrapperFullWidth('gpu-catalog');
+        this.setWrapperFullWidth('llm-catalog');
     }
 
-    // ----- Filter Methods -----
+    // ===== Section: Filters =====
     populateFilterOptions() {
         // Populate GPU filter options
         if (this.gpuCatalogData.length > 0) {
             const vendors = [...new Set(this.gpuCatalogData.map(gpu => gpu.vendor).filter(Boolean))].sort();
             const architectures = [...new Set(this.gpuCatalogData.map(gpu => gpu.architecture).filter(Boolean))].sort();
 
-            const vendorSelect = document.getElementById('gpu-vendor-filter');
-            const archSelect = document.getElementById('gpu-architecture-filter');
+            const vendorSelect = this.el('gpu-vendor-filter');
+            const archSelect = this.el('gpu-architecture-filter');
 
             if (vendorSelect) {
-                vendorSelect.innerHTML = '<option value="">All Vendors</option>';
+                const options = ['<option value="">All Vendors</option>'];
                 vendors.forEach(vendor => {
-                    vendorSelect.innerHTML += `<option value="${vendor}">${vendor}</option>`;
+                    options.push(`<option value="${vendor}">${vendor}</option>`);
                 });
+                vendorSelect.innerHTML = options.join('');
             }
 
             if (archSelect) {
-                archSelect.innerHTML = '<option value="">All Architectures</option>';
+                const options = ['<option value="">All Architectures</option>'];
                 architectures.forEach(arch => {
-                    archSelect.innerHTML += `<option value="${arch}">${arch}</option>`;
+                    options.push(`<option value="${arch}">${arch}</option>`);
                 });
+                archSelect.innerHTML = options.join('');
             }
         }
 
@@ -1531,21 +1566,21 @@ class GPUCalculator {
             const licenses = [...new Set(this.llms.map(llm => llm.license).filter(Boolean))].sort();
 
             // Type options are fixed to Dense and MoE as requested
-            const typeSelect = document.getElementById('llm-type-filter');
-            const licenseSelect = document.getElementById('llm-license-filter');
+            const typeSelect = this.el('llm-type-filter');
+            const licenseSelect = this.el('llm-license-filter');
 
             if (typeSelect) {
-                typeSelect.innerHTML = '';
-                typeSelect.innerHTML += '<option value="">All Types</option>';
-                typeSelect.innerHTML += '<option value="dense">Dense</option>';
-                typeSelect.innerHTML += '<option value="moe">MoE</option>';
+                typeSelect.innerHTML = '<option value="">All Types</option>' +
+                    '<option value="dense">Dense</option>' +
+                    '<option value="moe">MoE</option>';
             }
 
             if (licenseSelect) {
-                licenseSelect.innerHTML = '<option value="">All Licenses</option>';
+                const options = ['<option value="">All Licenses</option>'];
                 licenses.forEach(license => {
-                    licenseSelect.innerHTML += `<option value="${license}">${license}</option>`;
+                    options.push(`<option value="${license}">${license}</option>`);
                 });
+                licenseSelect.innerHTML = options.join('');
             }
         }
     }
@@ -1623,9 +1658,9 @@ class GPUCalculator {
         this.gpuFilters = { vendor: '', architecture: '', memory: '' };
 
         // Reset filter UI
-        const vendorSelect = document.getElementById('gpu-vendor-filter');
-        const archSelect = document.getElementById('gpu-architecture-filter');
-        const memorySelect = document.getElementById('gpu-memory-filter');
+        const vendorSelect = this.el('gpu-vendor-filter');
+        const archSelect = this.el('gpu-architecture-filter');
+        const memorySelect = this.el('gpu-memory-filter');
 
         if (vendorSelect) vendorSelect.value = '';
         if (archSelect) archSelect.value = '';
@@ -1639,9 +1674,9 @@ class GPUCalculator {
         this.llmFilters = { size: '', type: '', license: '' };
 
         // Reset filter UI
-        const sizeSelect = document.getElementById('llm-size-filter');
-        const typeSelect = document.getElementById('llm-type-filter');
-        const licenseSelect = document.getElementById('llm-license-filter');
+        const sizeSelect = this.el('llm-size-filter');
+        const typeSelect = this.el('llm-type-filter');
+        const licenseSelect = this.el('llm-license-filter');
 
         if (sizeSelect) sizeSelect.value = '';
         if (typeSelect) typeSelect.value = '';
@@ -1651,11 +1686,11 @@ class GPUCalculator {
         this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
     }
 
-    // ----- SPA Page Navigation -----
+    // ===== Section: SPA page navigation =====
     initPageNavigation() {
         // Hide all sections except currentPage
         this.pageOrder.forEach(id => {
-            const section = document.getElementById(id);
+            const section = this.el(id);
             if (!section) return;
             if (id !== this.currentPage) {
                 section.classList.add('hidden');
@@ -1671,9 +1706,9 @@ class GPUCalculator {
         navLinks.forEach(link => {
             const targetId = (link.getAttribute('href') || '').replace('#', '');
             if (targetId === id) {
-                link.classList.add('text-electric');
+                link.classList.add('text-accent');
             } else {
-                link.classList.remove('text-electric');
+                link.classList.remove('text-accent');
             }
         });
     }
@@ -1684,8 +1719,8 @@ class GPUCalculator {
         const toIdx = this.pageOrder.indexOf(targetId);
         const direction = toIdx > fromIdx ? 1 : -1; // 1: left→right, -1: right→left
 
-        const fromEl = document.getElementById(this.currentPage);
-        const toEl = document.getElementById(targetId);
+        const fromEl = this.el(this.currentPage);
+        const toEl = this.el(targetId);
         if (!toEl) return;
 
         // Prepare target
@@ -1699,7 +1734,7 @@ class GPUCalculator {
                 targets: fromEl,
                 translateX: [0, direction === 1 ? -50 : 50],
                 opacity: [1, 0],
-                duration: 250,
+                duration: PAGE_SLIDE_OUT_MS,
                 easing: 'easeOutCubic',
                 complete: () => {
                     fromEl.classList.add('hidden');
@@ -1714,7 +1749,7 @@ class GPUCalculator {
             targets: toEl,
             translateX: [direction === 1 ? 50 : -50, 0],
             opacity: [0, 1],
-            duration: 300,
+            duration: PAGE_SLIDE_IN_MS,
             easing: 'easeOutCubic',
             complete: () => {
                 toEl.style.transform = '';
@@ -1725,7 +1760,7 @@ class GPUCalculator {
                     // Ensure chart sizes correctly when page becomes visible
                     this.memoryChart.resize();
                 }
-                const anchor = document.getElementById(targetId);
+                const anchor = this.el(targetId);
                 if (anchor) {
                     anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
@@ -1733,38 +1768,9 @@ class GPUCalculator {
         });
     }
 
-
-
-    updateOptimizationTips(tips) {
-        const container = document.getElementById('optimization-tips');
-        container.innerHTML = '';
-
-        tips.forEach(tip => {
-            const div = document.createElement('div');
-            const colorClass = tip.type === 'success' ? 'border-sage' :
-                tip.type === 'warning' ? 'border-amber' : 'border-electric';
-            const iconClass = tip.type === 'success' ? 'text-sage' :
-                tip.type === 'warning' ? 'text-amber' : 'text-electric';
-
-            div.className = `p-4 bg-navy/50 rounded-lg border-l-4 ${colorClass}`;
-            div.innerHTML = `
-                <div class="flex items-start space-x-3">
-                    <div class="w-6 h-6 ${iconClass} flex items-center justify-center mt-0.5">
-                        ${tip.type === 'success' ? '✓' : tip.type === 'warning' ? '⚠' : 'ℹ'}
-                    </div>
-                    <div>
-                        <div class="font-semibold mb-1">${tip.title}</div>
-                        <div class="text-sm text-soft-gray/70">${tip.message}</div>
-                    </div>
-                </div>
-            `;
-
-            container.appendChild(div);
-        });
-    }
-
+    // ===== Section: Charts (ECharts memory donut) =====
     initializeMemoryChart() {
-        const chartDom = document.getElementById('memory-chart');
+        const chartDom = this.el('memory-chart');
         if (!chartDom) {
             this.memoryChart = null;
             return;
@@ -1776,7 +1782,7 @@ class GPUCalculator {
             tooltip: {
                 trigger: 'item',
                 backgroundColor: '#1a202c',
-                borderColor: '#00d4ff',
+                borderColor: '#3b82f6',
                 textStyle: { color: '#e2e8f0' }
             },
             series: [{
@@ -1784,7 +1790,7 @@ class GPUCalculator {
                 radius: ['40%', '70%'],
                 center: ['50%', '50%'],
                 data: [
-                    { value: 13.0, name: 'Model Weights', itemStyle: { color: '#00d4ff' } },
+                    { value: 13.0, name: 'Model Weights', itemStyle: { color: '#3b82f6' } },
                     { value: 2.0, name: 'KV Cache', itemStyle: { color: '#ffb347' } },
                     { value: 0.5, name: 'Activation', itemStyle: { color: '#7fb069' } },
                     { value: 4.9, name: 'Overhead', itemStyle: { color: '#94a3b8' } }
@@ -1813,7 +1819,7 @@ class GPUCalculator {
         const option = {
             series: [{
                 data: [
-                    { value: memory.weights, name: 'Model Weights', itemStyle: { color: '#00d4ff' } },
+                    { value: memory.weights, name: 'Model Weights', itemStyle: { color: '#3b82f6' } },
                     { value: memory.cache, name: 'KV Cache', itemStyle: { color: '#ffb347' } },
                     { value: memory.activation, name: 'Activation', itemStyle: { color: '#7fb069' } },
                     { value: memory.overhead, name: 'Overhead', itemStyle: { color: '#94a3b8' } }
@@ -1824,27 +1830,8 @@ class GPUCalculator {
         this.memoryChart.setOption(option);
     }
 
+    // ===== Section: Animations =====
     initializeAnimations() {
-        // Initialize text splitting for animations
-        Splitting();
-
-        // Typewriter effect
-        if (document.getElementById('typed-text')) {
-            new Typed('#typed-text', {
-                strings: [
-                    'Optimize your GPU requirements with precision calculations',
-                    'Get instant recommendations for AI and ML workloads',
-                    'Professional-grade accuracy for developers and engineers'
-                ],
-                typeSpeed: 50,
-                backSpeed: 30,
-                backDelay: 2000,
-                loop: true,
-                showCursor: true,
-                cursorChar: '|'
-            });
-        }
-
         // Scroll animations
         this.setupScrollAnimations();
 
@@ -1865,7 +1852,7 @@ class GPUCalculator {
                         targets: entry.target,
                         opacity: [0, 1],
                         translateY: [20, 0],
-                        duration: 800,
+                        duration: SCROLL_REVEAL_MS,
                         easing: 'easeOutCubic',
                         delay: anime.stagger(100)
                     });
@@ -1885,7 +1872,7 @@ class GPUCalculator {
                     targets: element,
                     translateY: -4,
                     scale: 1.02,
-                    duration: 300,
+                    duration: HOVER_LIFT_MS,
                     easing: 'easeOutCubic'
                 });
             });
@@ -1895,80 +1882,21 @@ class GPUCalculator {
                     targets: element,
                     translateY: 0,
                     scale: 1,
-                    duration: 300,
+                    duration: HOVER_LIFT_MS,
                     easing: 'easeOutCubic'
                 });
             });
         });
     }
 
-    initializeParticles() {
-        // P5.js particle system
-        new p5((p) => {
-            let particles = [];
-
-            p.setup = function () {
-                const canvas = p.createCanvas(p.windowWidth, p.windowHeight);
-                canvas.parent('particles-canvas');
-
-                // Create particles
-                for (let i = 0; i < 50; i++) {
-                    particles.push({
-                        x: p.random(p.width),
-                        y: p.random(p.height),
-                        vx: p.random(-0.5, 0.5),
-                        vy: p.random(-0.5, 0.5),
-                        size: p.random(2, 6),
-                        opacity: p.random(0.1, 0.3)
-                    });
-                }
-            };
-
-            p.draw = function () {
-                p.clear();
-
-                // Update and draw particles
-                particles.forEach(particle => {
-                    particle.x += particle.vx;
-                    particle.y += particle.vy;
-
-                    // Wrap around edges
-                    if (particle.x < 0) particle.x = p.width;
-                    if (particle.x > p.width) particle.x = 0;
-                    if (particle.y < 0) particle.y = p.height;
-                    if (particle.y > p.height) particle.y = 0;
-
-                    // Draw particle
-                    p.fill(0, 212, 255, particle.opacity * 255);
-                    p.noStroke();
-                    p.circle(particle.x, particle.y, particle.size);
-                });
-
-                // Draw connections
-                for (let i = 0; i < particles.length; i++) {
-                    for (let j = i + 1; j < particles.length; j++) {
-                        const dist = p.dist(particles[i].x, particles[i].y, particles[j].x, particles[j].y);
-                        if (dist < 100) {
-                            p.stroke(0, 212, 255, (1 - dist / 100) * 50);
-                            p.strokeWeight(1);
-                            p.line(particles[i].x, particles[i].y, particles[j].x, particles[j].y);
-                        }
-                    }
-                }
-            };
-
-            p.windowResized = function () {
-                p.resizeCanvas(p.windowWidth, p.windowHeight);
-            };
-        });
-    }
-
+    // ===== Section: Theme =====
+    // NOTE: currently dormant — no caller/markup ('#theme-toggle' is not in index.html); kept intentionally.
     toggleTheme() {
         // Simple theme toggle implementation
         const body = document.body;
         // Consider both possible dark background classes
         const isDark = body.classList.contains('bg-charcoal') || body.classList.contains('bg-deep-charcoal');
-        const toggleBtn = document.getElementById('theme-toggle');
+        const toggleBtn = this.el('theme-toggle');
         const iconSpan = toggleBtn ? toggleBtn.querySelector('span') : null;
 
         if (isDark) {
@@ -1982,6 +1910,7 @@ class GPUCalculator {
         }
     }
 
+    // ===== Section: URL state =====
     // Keep the URL and share link in sync with current configuration
     updateURL() {
         const p = new URLSearchParams();
@@ -2003,13 +1932,16 @@ class GPUCalculator {
             history.replaceState(null, '', url);
         } catch (_) { }
 
-        const shareEl = document.getElementById('shareUrl');
+        const shareEl = this.el('shareUrl');
         if (shareEl) {
             shareEl.textContent = url;
         }
     }
 
     // Load configuration from the current URL and update the UI
+    // KNOWN ISSUE (preserved): reads IDs 'context-length-slider', 'batch-size-slider',
+    // and 'vram-input', but the actual bindings use 'context-slider', 'batch-slider',
+    // and 'vram-per-gpu' — the URL restore silently no-ops for those fields.
     loadFromURL() {
         const params = new URLSearchParams(window.location.search || '');
         const get = (k, d = null) => params.has(k) ? params.get(k) : d;
@@ -2019,7 +1951,7 @@ class GPUCalculator {
         const model = get('model', cfg.model);
         if (model) {
             cfg.model = model;
-            const ms = document.getElementById('model-select');
+            const ms = this.el('model-select');
             if (ms) ms.value = model;
             this.toggleCustomModel();
         }
@@ -2035,85 +1967,83 @@ class GPUCalculator {
         const ctx = num('ctx', cfg.contextLength);
         if (ctx != null && !Number.isNaN(ctx)) {
             cfg.contextLength = ctx;
-            const slider = document.getElementById('context-length-slider');
-            const valEl = document.getElementById('context-length-value');
+            const slider = this.el('context-length-slider');
             if (slider) slider.value = String(ctx);
-            if (valEl) valEl.textContent = String(ctx);
+            this.safeSet('context-length-value', String(ctx));
         }
 
         const kvpct = num('kvpct', cfg.kvOverheadPercent);
         if (kvpct != null && !Number.isNaN(kvpct)) {
             cfg.kvOverheadPercent = kvpct;
-            const slider = document.getElementById('kv-overhead-slider');
-            const valEl = document.getElementById('kv-overhead-value');
+            const slider = this.el('kv-overhead-slider');
             if (slider) slider.value = String(kvpct);
-            if (valEl) valEl.textContent = `${kvpct}%`;
+            this.safeSet('kv-overhead-value', `${kvpct}%`);
         }
 
         const conc = num('conc', cfg.concurrency);
         if (conc != null && !Number.isNaN(conc)) {
             cfg.concurrency = conc;
-            const input = document.getElementById('concurrency-input');
+            const input = this.el('concurrency-input');
             if (input) input.value = String(conc);
         }
 
         const batch = num('batch', cfg.batchSize);
         if (batch != null && !Number.isNaN(batch)) {
             cfg.batchSize = batch;
-            const slider = document.getElementById('batch-size-slider');
-            const valEl = document.getElementById('batch-value');
+            const slider = this.el('batch-size-slider');
             if (slider) slider.value = String(batch);
-            if (valEl) valEl.textContent = String(batch);
+            this.safeSet('batch-value', String(batch));
         }
 
         const gpucount = num('gpucount', cfg.gpuCount);
         if (gpucount != null && !Number.isNaN(gpucount)) {
             cfg.gpuCount = gpucount;
-            const input = document.getElementById('gpu-count-input');
+            const input = this.el('gpu-count-input');
             if (input) input.value = String(gpucount);
         }
 
         const gpumodel = get('gpumodel', cfg.selectedGPUModelName);
         if (gpumodel) {
             cfg.selectedGPUModelName = gpumodel;
-            const select = document.getElementById('gpu-model-select');
+            const select = this.el('gpu-model-select');
             if (select) select.value = gpumodel;
         }
 
         const vram = num('vram', cfg.vramPerGPU);
         if (vram != null && !Number.isNaN(vram)) {
             cfg.vramPerGPU = vram;
-            const input = document.getElementById('vram-input');
+            const input = this.el('vram-input');
             if (input) input.value = String(vram);
         }
 
         const sysgb = num('sysgb', cfg.sysOverheadGB);
         if (sysgb != null && !Number.isNaN(sysgb)) {
             cfg.sysOverheadGB = sysgb;
-            const input = document.getElementById('sys-overhead-gb');
+            const input = this.el('sys-overhead-gb');
             if (input) input.value = String(sysgb);
         }
 
         const syspct = num('syspct', cfg.sysOverheadPercent);
         if (syspct != null && !Number.isNaN(syspct)) {
             cfg.sysOverheadPercent = syspct;
-            const slider = document.getElementById('sys-overhead-slider');
-            const valEl = document.getElementById('sys-overhead-value');
+            const slider = this.el('sys-overhead-slider');
             if (slider) slider.value = String(syspct);
-            if (valEl) valEl.textContent = `${syspct}%`;
+            this.safeSet('sys-overhead-value', `${syspct}%`);
         }
 
         this.updateCalculations();
     }
 
-
-
+    // ===== Section: Utilities =====
+    // KNOWN ISSUE (preserved): the `decimals` parameter is ignored (no maximumFractionDigits).
     formatNumber(num, decimals = 0) {
         return new Intl.NumberFormat('en-US').format(num);
     }
 }
 
-// Dialog controls
+// ===== Section: Global dialog functions =====
+// NOTE: currently dormant — no caller/markup; kept intentionally.
+// (Designed for inline onclick use; index.html currently has none.)
 function showShareDialog(e) {
     if (e) e.preventDefault();
     const o = document.getElementById('overlay');
@@ -2194,7 +2124,7 @@ async function copyShareLink() {
     }
 }
 
-// Utility functions
+// ===== Section: Global utility functions =====
 function scrollToCalculator() {
     if (window.gpuCalculator && typeof window.gpuCalculator.switchPage === 'function') {
         window.gpuCalculator.switchPage('calculator');
@@ -2206,6 +2136,7 @@ function scrollToCalculator() {
     }
 }
 
+// ===== Section: Bootstrap =====
 // Initialize the calculator when the page loads
 document.addEventListener('DOMContentLoaded', () => {
     window.gpuCalculator = new GPUCalculator();

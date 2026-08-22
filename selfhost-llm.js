@@ -1,41 +1,125 @@
+// selfhost-llm.js — logic for the SelfHostLLM calculator page (calculator.html only).
+// Plain top-level functions (no modules); the functions listed below are called
+// from inline handlers in calculator.html and must remain global:
+//   updateURL, loadFromURL, updateGPUSpecs, updateModelInputMethod,
+//   updateModelSelection, updateContextInputMethod, calculate,
+//   closeShareDialog, closeExplanationDialog, closePerformanceExplanation,
+//   showHowCalculated, showPerformanceExplanation,
+//   copyScenarioTable, downloadScenarioTable
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+// --- Performance heuristics ---
+// Model size efficiency factor (larger models are less efficient)
+const EFFICIENCY_SMALL_MODEL = 0.85;   // <= 7B params
+const EFFICIENCY_MEDIUM_MODEL = 0.7;   // <= 30B params
+const EFFICIENCY_LARGE_MODEL = 0.5;    // <= 70B params
+const EFFICIENCY_XLARGE_MODEL = 0.3;   // > 70B params
+
+// Quantization speed boost
+const QUANT_BOOST_MAX = 2.5;   // quantization <= 0.25 (INT4/MXFP4)
+const QUANT_BOOST_HIGH = 2.2;  // quantization <= 0.30
+const QUANT_BOOST_MED = 1.8;   // quantization <= 0.50 (INT8/FP8)
+const QUANT_BOOST_LOW = 1.3;   // quantization <= 0.75
+
+// Context length thresholds (tokens) and their speed impact
+const CONTEXT_THRESHOLD_MEDIUM = 8192;    // 8K
+const CONTEXT_THRESHOLD_LARGE = 32768;    // 32K
+const CONTEXT_THRESHOLD_XL = 131072;      // 128K
+const CONTEXT_IMPACT_MEDIUM = 0.85;  // >= 8K
+const CONTEXT_IMPACT_LARGE = 0.6;    // >= 32K
+const CONTEXT_IMPACT_XL = 0.3;       // >= 128K
+
+// Multi-GPU scaling (not perfect linear scaling): base + spread / gpuCount
+const MULTI_GPU_SCALING_BASE = 0.85;
+const MULTI_GPU_SCALING_SPREAD = 0.15;
+
+const PERF_CONSERVATIVE_FACTOR = 0.6;  // conservative estimate for datacenter GPUs
+
+// Performance rating thresholds (tokens/sec)
+const RATING_EXCELLENT_TPS = 100;
+const RATING_GOOD_TPS = 50;
+const RATING_MODERATE_TPS = 25;
+const RATING_SLOW_TPS = 10;
+
+// --- Memory/model heuristics ---
+const GB_PER_BILLION_PARAMS = 2;  // rough estimate: 2GB per billion parameters in FP16
+const KV_BYTES_PER_VALUE = 2;     // KV stored typically in fp16/bf16 regardless of weight quantization
+
+// --- Scenario table ---
+const SCENARIO_CONTEXTS = [8192, 16384, 32768, 65536, 131072];  // 8K, 16K, 32K, 64K, 128K
+const SCENARIO_GPU_COUNT_WINDOW = 5;     // explore ±5 around the current GPU count
+const SCENARIO_MIN_ROWS = 10;            // guarantee at least this many recommendations
+const SCENARIO_EXTEND_SAFETY_CAP = 200;  // loop safety cap while extending GPU counts
+const SCENARIO_NUMERIC_SORT_KEYS = new Set(['gpuCount', 'context', 'maxConcurrent', 'tokensPerSecNum', 'genTimeNum']);
+
+// ============================================================================
+// DOM / state helpers
+// ============================================================================
+
+const el = (id) => document.getElementById(id);
+
+// Shared mutable state (replaces the old window.__* globals; internal to this file)
+const state = {
+    moe: {
+        isSelected: false,        // selected preset is a MoE model
+        offloadingEnabled: false, // MoE offloading toggle
+        activeMemory: null,       // GB, active experts only
+        totalMemory: null         // GB, full model
+    },
+    scenario: {
+        rows: [],                              // currently rendered rows (used by CSV export)
+        baseRows: [],                          // rows before filtering/sorting
+        sortState: { key: null, dir: 'asc' },
+        sortingBound: false,                   // idempotent one-time binding flags
+        filtersBound: false
+    }
+};
+
+// ============================================================================
+// URL state (query-param sync)
+// ============================================================================
+
 // URL parameter management
 function updateURL() {
     const params = new URLSearchParams();
-    
+
     // GPU Configuration
-    const gpuType = document.getElementById('gpu-type').value;
+    const gpuType = el('gpu-type').value;
     if (gpuType) params.set('gpu', gpuType);
-    params.set('gpu_count', document.getElementById('gpu-count').value);
-    params.set('sys_overhead', document.getElementById('system-overhead').value);
-    
+    params.set('gpu_count', el('gpu-count').value);
+    params.set('sys_overhead', el('system-overhead').value);
+
     // Model Configuration
     const modelInputType = document.querySelector('input[name="model-input-type"]:checked').value;
     params.set('model_type', modelInputType);
-    
+
     if (modelInputType === 'preset') {
-        params.set('model', document.getElementById('model-preset').value);
+        params.set('model', el('model-preset').value);
     } else if (modelInputType === 'parameters') {
-        params.set('model_params', document.getElementById('model-parameters').value);
+        params.set('model_params', el('model-parameters').value);
     } else if (modelInputType === 'memory') {
-        params.set('model_memory', document.getElementById('model-memory-input').value);
+        params.set('model_memory', el('model-memory-input').value);
     }
-    
+
     // Quantization
-    params.set('quant', document.getElementById('quantization').value);
-    
+    params.set('quant', el('quantization').value);
+
     // Context Configuration
     const contextInputType = document.querySelector('input[name="context-input-type"]:checked').value;
     params.set('context_type', contextInputType);
-    
+
     if (contextInputType === 'preset') {
-        params.set('context', document.getElementById('context-preset').value);
+        params.set('context', el('context-preset').value);
     } else {
-        params.set('context_custom', document.getElementById('context-custom').value);
+        params.set('context_custom', el('context-custom').value);
     }
-    
+
     // KV Cache
-    params.set('kv_cache', document.getElementById('kv-cache-overhead').value);
-    
+    params.set('kv_cache', el('kv-cache-overhead').value);
+
     // Update URL without reloading page
     const newURL = window.location.pathname + '?' + params.toString();
     window.history.replaceState({}, '', newURL);
@@ -43,67 +127,72 @@ function updateURL() {
 
 function loadFromURL() {
     const params = new URLSearchParams(window.location.search);
-    
+
     // GPU Configuration
     if (params.has('gpu')) {
-        document.getElementById('gpu-type').value = params.get('gpu');
+        el('gpu-type').value = params.get('gpu');
         updateGPUSpecs();
     }
     if (params.has('gpu_count')) {
-        document.getElementById('gpu-count').value = params.get('gpu_count');
+        el('gpu-count').value = params.get('gpu_count');
     }
     if (params.has('sys_overhead')) {
-        document.getElementById('system-overhead').value = params.get('sys_overhead');
+        el('system-overhead').value = params.get('sys_overhead');
     }
-    
+
     // Model Configuration
     if (params.has('model_type')) {
         const modelType = params.get('model_type');
         document.querySelector(`input[name="model-input-type"][value="${modelType}"]`).checked = true;
         updateModelInputMethod();
-        
+
         if (modelType === 'preset' && params.has('model')) {
-            document.getElementById('model-preset').value = params.get('model');
+            el('model-preset').value = params.get('model');
         } else if (modelType === 'parameters' && params.has('model_params')) {
-            document.getElementById('model-parameters').value = params.get('model_params');
+            el('model-parameters').value = params.get('model_params');
         } else if (modelType === 'memory' && params.has('model_memory')) {
-            document.getElementById('model-memory-input').value = params.get('model_memory');
+            el('model-memory-input').value = params.get('model_memory');
         }
     }
-    
+
     // Quantization
     if (params.has('quant')) {
-        document.getElementById('quantization').value = params.get('quant');
+        el('quantization').value = params.get('quant');
     }
-    
+
     // Context Configuration
     if (params.has('context_type')) {
         const contextType = params.get('context_type');
         document.querySelector(`input[name="context-input-type"][value="${contextType}"]`).checked = true;
         updateContextInputMethod();
-        
+
         if (contextType === 'preset' && params.has('context')) {
-            document.getElementById('context-preset').value = params.get('context');
+            el('context-preset').value = params.get('context');
         } else if (contextType === 'custom' && params.has('context_custom')) {
-            document.getElementById('context-custom').value = params.get('context_custom');
+            el('context-custom').value = params.get('context_custom');
         }
     }
-    
+
     // KV Cache
     if (params.has('kv_cache')) {
-        document.getElementById('kv-cache-overhead').value = params.get('kv_cache');
+        el('kv-cache-overhead').value = params.get('kv_cache');
     }
-    
+
     // Calculate after loading
     calculate();
 }
 
+// ============================================================================
+// Bandwidth lookup
+// ============================================================================
+
 // Get GPU memory bandwidth based on model
 function getGPUBandwidth(gpuModel) {
     if (!gpuModel) return 0;
-    
-    // Prefer bandwidth from the selected option's data attribute if available
-    const select = document.getElementById('gpu-type');
+
+    // Prefer bandwidth from the selected option's data attribute if available.
+    // NOTE: this reads the currently SELECTED option regardless of gpuModel.
+    const select = el('gpu-type');
     if (select && select.selectedIndex >= 0) {
         const selectedOption = select.options[select.selectedIndex];
         const bwAttr = selectedOption ? selectedOption.getAttribute('data-bandwidth') : null;
@@ -120,13 +209,13 @@ function getGPUBandwidth(gpuModel) {
         'rtx4070': 504,
         'rtx4060ti': 288,
         'rtx4060ti8': 288,
-        
+
         // RTX 30 Series
         'rtx3090ti': 936,
         'rtx3090': 936,
         'rtx3080ti': 912,
         'rtx3080': 760,
-        
+
         // NVIDIA Professional
         'a100': 1600,  // 40GB variant
         'a100-80': 2000,  // 80GB variant
@@ -139,81 +228,85 @@ function getGPUBandwidth(gpuModel) {
         't4': 320,
         'h200': 4915,
         'h20': 4096,
-        
+
         // AMD Radeon
         'rx7900xtx': 960,
         'rx7900xt': 800,
-        
+
         // AMD Instinct
         'mi300x': 5325,
         'mi250x': 3200
     };
-    
+
     return bandwidthMap[gpuModel] || 0;
 }
+
+// ============================================================================
+// Performance math
+// ============================================================================
 
 // Calculate performance estimate
 function calculatePerformance(modelMemory, quantization, contextLength, gpuModel, gpuCount) {
     const bandwidth = getGPUBandwidth(gpuModel) * gpuCount;
     if (!bandwidth) return null;
-    
+
     // Get model parameters from preset if available
     let modelParams = 7;
     const modelInputType = document.querySelector('input[name="model-input-type"]:checked').value;
     if (modelInputType === 'preset') {
-        const modelSelect = document.getElementById('model-preset');
+        const modelSelect = el('model-preset');
         modelParams = parseFloat(modelSelect.value) || 7;
     } else if (modelInputType === 'parameters') {
-        modelParams = parseFloat(document.getElementById('model-parameters').value) || 7;
+        modelParams = parseFloat(el('model-parameters').value) || 7;
     }
-    
+
     // Model size efficiency factor (larger models are less efficient)
-    let efficiency = 0.8;
+    let efficiency;
     if (modelParams <= 7) {
-        efficiency = 0.85;
+        efficiency = EFFICIENCY_SMALL_MODEL;
     } else if (modelParams <= 30) {
-        efficiency = 0.7;
+        efficiency = EFFICIENCY_MEDIUM_MODEL;
     } else if (modelParams <= 70) {
-        efficiency = 0.5;
+        efficiency = EFFICIENCY_LARGE_MODEL;
     } else {
-        efficiency = 0.3;
+        efficiency = EFFICIENCY_XLARGE_MODEL;
     }
-    
+
     // Quantization speed boost
     let quantBoost = 1.0;
     if (quantization <= 0.25) {
-        quantBoost = 2.5;
+        quantBoost = QUANT_BOOST_MAX;
     } else if (quantization <= 0.3) {
-        quantBoost = 2.2;
+        quantBoost = QUANT_BOOST_HIGH;
     } else if (quantization <= 0.5) {
-        quantBoost = 1.8;
+        quantBoost = QUANT_BOOST_MED;
     } else if (quantization <= 0.75) {
-        quantBoost = 1.3;
+        quantBoost = QUANT_BOOST_LOW;
     }
-    
+
     // Context length impact
     let contextImpact = 1.0;
-    if (contextLength >= 131072) {
-        contextImpact = 0.3;
-    } else if (contextLength >= 32768) {
-        contextImpact = 0.6;
-    } else if (contextLength >= 8192) {
-        contextImpact = 0.85;
+    if (contextLength >= CONTEXT_THRESHOLD_XL) {
+        contextImpact = CONTEXT_IMPACT_XL;
+    } else if (contextLength >= CONTEXT_THRESHOLD_LARGE) {
+        contextImpact = CONTEXT_IMPACT_LARGE;
+    } else if (contextLength >= CONTEXT_THRESHOLD_MEDIUM) {
+        contextImpact = CONTEXT_IMPACT_MEDIUM;
     }
-    
+
     // Multi-GPU scaling (not perfect linear scaling)
     let multiGpuScaling = 1.0;
     if (gpuCount > 1) {
-        multiGpuScaling = 0.85 + (0.15 / gpuCount);
+        multiGpuScaling = MULTI_GPU_SCALING_BASE + (MULTI_GPU_SCALING_SPREAD / gpuCount);
     }
-    
+
     // Calculate tokens per second
     // Formula: (bandwidth / model_memory_gb) * efficiency * quant_boost * context_impact * scaling
     const baseSpeed = (bandwidth / modelMemory) * efficiency * quantBoost * contextImpact * multiGpuScaling;
-    
+
     // Apply realistic scaling factor
-    const tokensPerSecond = baseSpeed * 0.6; // Conservative estimate for datacenter GPUs
-    
+    const tokensPerSecond = baseSpeed * PERF_CONSERVATIVE_FACTOR; // Conservative estimate for datacenter GPUs
+
     return {
         tokensPerSecond: tokensPerSecond,
         bandwidth: bandwidth,
@@ -224,28 +317,15 @@ function calculatePerformance(modelMemory, quantization, contextLength, gpuModel
     };
 }
 
-function updateGPUSpecs() {
-    const select = document.getElementById('gpu-type');
-    const vramInput = document.getElementById('vram-per-gpu');
-    
-    if (select.value) {
-        const selectedOption = select.options[select.selectedIndex];
-        const vram = selectedOption.getAttribute('data-vram');
-        vramInput.value = vram;
-    } else {
-        vramInput.value = '';
-    }
-    
-    calculate();
-    if (typeof updateURL === 'function') updateURL();
-}
+// ============================================================================
+// GPU catalog augmentation (extend the GPU <select> from data/GPUs.json)
+// ============================================================================
 
-// --- Augment calculator GPU dropdown from JSON catalog ---
 async function augmentCalculatorGPUOptionsFromCatalog() {
-    const select = document.getElementById('gpu-type');
+    const select = el('gpu-type');
     if (!select) return;
 
-    // Helper to parse memory_gb values like number or "40 / 80"
+    // Helper to parse memory_gb values like number or "40 / 80" (takes the MAX)
     const parseMemoryGB = (v) => {
         if (v == null) return null;
         if (typeof v === 'number' && !isNaN(v)) return Math.round(Number(v));
@@ -382,50 +462,83 @@ async function augmentCalculatorGPUOptionsFromCatalog() {
     }
 }
 
+// ============================================================================
+// Input-method toggles (GPU/model/context UI switching)
+// ============================================================================
+
+function updateGPUSpecs() {
+    const select = el('gpu-type');
+    const vramInput = el('vram-per-gpu');
+
+    if (select.value) {
+        const selectedOption = select.options[select.selectedIndex];
+        const vram = selectedOption.getAttribute('data-vram');
+        vramInput.value = vram;
+    } else {
+        vramInput.value = '';
+    }
+
+    calculate();
+    updateURL();
+}
+
 function updateModelInputMethod() {
     const inputType = document.querySelector('input[name="model-input-type"]:checked').value;
-    
+
     // Toggle visibility using hidden class
-    document.getElementById('model-preset-group').classList.toggle('hidden', inputType !== 'preset');
-    document.getElementById('model-parameters-group').classList.toggle('hidden', inputType !== 'parameters');
-    document.getElementById('model-memory-group').classList.toggle('hidden', inputType !== 'memory');
-    
+    el('model-preset-group').classList.toggle('hidden', inputType !== 'preset');
+    el('model-parameters-group').classList.toggle('hidden', inputType !== 'parameters');
+    el('model-memory-group').classList.toggle('hidden', inputType !== 'memory');
+
     calculate();
 }
 
 function updateModelSelection() {
-    const modelSelect = document.getElementById('model-preset');
+    const modelSelect = el('model-preset');
     // Do not auto-change quantization on model selection; keep user's choice
     calculate();
-    if (typeof updateURL === 'function') updateURL();
+    updateURL();
 }
 
 function updateContextInputMethod() {
     const inputType = document.querySelector('input[name="context-input-type"]:checked').value;
-    
+
     // Toggle visibility using hidden class
-    document.getElementById('context-preset-group').classList.toggle('hidden', inputType !== 'preset');
-    document.getElementById('context-custom-group').classList.toggle('hidden', inputType !== 'custom');
-    
+    el('context-preset-group').classList.toggle('hidden', inputType !== 'preset');
+    el('context-custom-group').classList.toggle('hidden', inputType !== 'custom');
+
     calculate();
 }
 
-function calculate() {
-    const gpuCount = parseInt(document.getElementById('gpu-count').value) || 1;
-    const vramPerGpu = parseFloat(document.getElementById('vram-per-gpu').value) || 0;
-    const systemOverhead = parseFloat(document.getElementById('system-overhead').value) || 2;
-    
-    // Get model memory based on input method
+// ============================================================================
+// Master calculate
+// ============================================================================
+
+// Read all raw form inputs used by calculate()
+function readInputs() {
+    return {
+        gpuCount: parseInt(el('gpu-count').value) || 1,
+        vramPerGpu: parseFloat(el('vram-per-gpu').value) || 0,
+        systemOverhead: parseFloat(el('system-overhead').value) || 2,
+        modelInputType: document.querySelector('input[name="model-input-type"]:checked').value,
+        contextInputType: document.querySelector('input[name="context-input-type"]:checked').value,
+        quantization: parseFloat(el('quantization').value),
+        kvCacheOverhead: parseFloat(el('kv-cache-overhead').value) / 100,
+        gpuType: el('gpu-type').value
+    };
+}
+
+// Get model memory based on input method; caches MoE context in state.moe
+function resolveModelMemory(modelInputType) {
     let modelMemory;
-    const modelInputType = document.querySelector('input[name="model-input-type"]:checked').value;
-    
+
     if (modelInputType === 'preset') {
-        const modelSelect = document.getElementById('model-preset');
+        const modelSelect = el('model-preset');
         const selectedOption = modelSelect.options[modelSelect.selectedIndex];
         const activeMemoryAttr = selectedOption.getAttribute('data-active-memory');
         const totalMemoryAttr = selectedOption.getAttribute('data-memory');
         const isMoE = !!activeMemoryAttr;
-        const offloadingEnabled = !!document.getElementById('moe-offloading') && document.getElementById('moe-offloading').checked;
+        const offloadingEnabled = !!el('moe-offloading') && el('moe-offloading').checked;
         // For VRAM fit: choose active vs total based on offloading toggle
         if (isMoE) {
             modelMemory = offloadingEnabled ? parseFloat(activeMemoryAttr) : (parseFloat(totalMemoryAttr) || 14);
@@ -433,67 +546,54 @@ function calculate() {
             modelMemory = parseFloat(totalMemoryAttr) || 14;
         }
         // Cache MoE context for performance and notes
-        window.__isMoESelected = isMoE;
-        window.__moeOffloadingEnabled = offloadingEnabled;
-        window.__moeActiveMemory = activeMemoryAttr ? parseFloat(activeMemoryAttr) : null;
-        window.__moeTotalMemory = totalMemoryAttr ? parseFloat(totalMemoryAttr) : null;
+        state.moe.isSelected = isMoE;
+        state.moe.offloadingEnabled = offloadingEnabled;
+        state.moe.activeMemory = activeMemoryAttr ? parseFloat(activeMemoryAttr) : null;
+        state.moe.totalMemory = totalMemoryAttr ? parseFloat(totalMemoryAttr) : null;
     } else if (modelInputType === 'parameters') {
-        const paramCount = parseFloat(document.getElementById('model-parameters').value) || 7;
-        modelMemory = paramCount * 2; // Rough estimate: 2GB per billion parameters in FP16
+        const paramCount = parseFloat(el('model-parameters').value) || 7;
+        modelMemory = paramCount * GB_PER_BILLION_PARAMS;
     } else if (modelInputType === 'memory') {
-        modelMemory = parseFloat(document.getElementById('model-memory-input').value) || 14;
-    }
-    
-    // Get context length based on input method
-    let contextLength;
-    const contextInputType = document.querySelector('input[name="context-input-type"]:checked').value;
-    
-    if (contextInputType === 'preset') {
-        contextLength = parseInt(document.getElementById('context-preset').value) || 4096;
-    } else {
-        contextLength = parseInt(document.getElementById('context-custom').value) || 4096;
-    }
-    
-    const quantization = parseFloat(document.getElementById('quantization').value);
-    const kvCacheOverhead = parseFloat(document.getElementById('kv-cache-overhead').value) / 100;
-    
-    // Calculate memory requirements
-    const totalVRAM = gpuCount * vramPerGpu;
-    const adjustedModelMemory = modelMemory * quantization;
-    
-    // Compute KV cache per request using architecture-driven formula
-    let kvCachePerRequest;
-    const modelSelectForKV = document.getElementById('model-preset');
-    const selectedOptionForKV = modelSelectForKV ? modelSelectForKV.options[modelSelectForKV.selectedIndex] : null;
-    // KV stored typically in fp16/bf16 → 2 bytes/elem regardless of weight quantization
-    const kvBytesPerElem = 2;
-    if (selectedOptionForKV) {
-        kvCachePerRequest = computeKVCacheGB(contextLength, selectedOptionForKV, kvBytesPerElem, kvCacheOverhead);
-    } else {
-        // Fallback if not using preset
-        kvCachePerRequest = computeKVCacheGB(contextLength, { textContent: `${modelMemory/2}B` }, kvBytesPerElem, kvCacheOverhead);
+        modelMemory = parseFloat(el('model-memory-input').value) || 14;
     }
 
-    const availableMemory = totalVRAM - systemOverhead - adjustedModelMemory;
-    
-    // Calculate concurrent requests
-    const maxConcurrentRequests = availableMemory / kvCachePerRequest;
-    const effectiveContext = contextLength;
-    
-    // Update results
-    document.getElementById('total-vram').textContent = totalVRAM.toFixed(1) + ' GB';
-    document.getElementById('model-memory').textContent = adjustedModelMemory.toFixed(1) + ' GB';
-    document.getElementById('kv-cache-memory').textContent = kvCachePerRequest.toFixed(2) + ' GB';
-    document.getElementById('available-memory').textContent = Math.max(0, availableMemory).toFixed(1) + ' GB';
-    document.getElementById('concurrent-requests').textContent = Math.max(0, maxConcurrentRequests).toFixed(2);
-    document.getElementById('effective-context').textContent = effectiveContext.toLocaleString() + ' tokens';
-    
+    return modelMemory;
+}
+
+// Get context length based on input method
+function resolveContextLength(contextInputType) {
+    if (contextInputType === 'preset') {
+        return parseInt(el('context-preset').value) || 4096;
+    }
+    return parseInt(el('context-custom').value) || 4096;
+}
+
+// Compute KV cache per request using the architecture-driven formula
+function resolveKVCachePerRequest(contextLength, modelMemory, kvCacheOverhead) {
+    const modelSelect = el('model-preset');
+    const selectedOption = modelSelect ? modelSelect.options[modelSelect.selectedIndex] : null;
+    if (selectedOption) {
+        return computeKVCacheGB(contextLength, selectedOption, KV_BYTES_PER_VALUE, kvCacheOverhead);
+    }
+    // Fallback if not using preset
+    return computeKVCacheGB(contextLength, { textContent: `${modelMemory / GB_PER_BILLION_PARAMS}B` }, KV_BYTES_PER_VALUE, kvCacheOverhead);
+}
+
+// Write the memory/results metrics and any capability warnings to the DOM
+function renderResults({ totalVRAM, adjustedModelMemory, kvCachePerRequest, availableMemory, maxConcurrentRequests, effectiveContext }) {
+    el('total-vram').textContent = totalVRAM.toFixed(1) + ' GB';
+    el('model-memory').textContent = adjustedModelMemory.toFixed(1) + ' GB';
+    el('kv-cache-memory').textContent = kvCachePerRequest.toFixed(2) + ' GB';
+    el('available-memory').textContent = Math.max(0, availableMemory).toFixed(1) + ' GB';
+    el('concurrent-requests').textContent = Math.max(0, maxConcurrentRequests).toFixed(2);
+    el('effective-context').textContent = effectiveContext.toLocaleString() + ' tokens';
+
     // Show warnings for insufficient capability
-    const warningsDiv = document.getElementById('warnings');
+    const warningsDiv = el('warnings');
     warningsDiv.innerHTML = '';
     const cannotServeSingleRequest = maxConcurrentRequests < 1;
     const modelExceedsVRAM = availableMemory < 0;
-    
+
     if (modelExceedsVRAM || cannotServeSingleRequest) {
         const suggestions = [
             'Reduce model memory via stronger quantization (e.g., INT4/FP8)',
@@ -505,153 +605,200 @@ function calculate() {
         const actionsHTML = `<div class="warning-actions">${suggestions.map(s => `• ${s}`).join('<br>')}</div>`;
         warningsDiv.innerHTML = `<div class="warning"><div class="warning-title">${title}</div>${actionsHTML}</div>`;
     }
-    
-    // Calculate and display performance if GPU is selected
-    const gpuType = document.getElementById('gpu-type').value;
-    const performanceSection = document.getElementById('performance-section');
-    
-    if (gpuType && availableMemory >= 0 && performanceSection) {
-        // Align MoE offloading behavior: when ON, use active experts; when OFF, use total
-        let perfModelMemoryBase = modelMemory;
-        if (window.__isMoESelected) {
-            const hasActive = typeof window.__moeActiveMemory === 'number' && !isNaN(window.__moeActiveMemory);
-            const hasTotal = typeof window.__moeTotalMemory === 'number' && !isNaN(window.__moeTotalMemory);
-            if (window.__moeOffloadingEnabled) {
-                perfModelMemoryBase = hasActive ? window.__moeActiveMemory : modelMemory;
-            } else {
-                perfModelMemoryBase = hasTotal ? window.__moeTotalMemory : modelMemory;
-            }
-        }
-        const perfMemoryAdjusted = perfModelMemoryBase * quantization;
-        const perf = calculatePerformance(perfMemoryAdjusted, quantization, contextLength, gpuType, gpuCount);
-        
-        if (perf) {
-            performanceSection.style.display = 'block';
-            
-            // Update performance metrics
-            const tokensPerSec = perf.tokensPerSecond.toFixed(2);
-            document.getElementById('tokens-per-second').textContent = `${tokensPerSec} tokens/sec`;
-            
-            // Generation time for 100 tokens
-            const tokensPerSecNum = parseFloat(tokensPerSec);
-            const genTime = tokensPerSecNum > 0 ? (100 / tokensPerSecNum).toFixed(1) : 'N/A';
-            document.getElementById('generation-time').textContent = `${genTime} seconds`;
-            
-            // Performance rating
-            let rating = '';
-            let ratingClass = '';
-            if (tokensPerSecNum > 100) {
-                rating = '🟢 Excellent';
-                ratingClass = 'excellent';
-            } else if (tokensPerSecNum > 50) {
-                rating = '🟢 Good';
-                ratingClass = 'good';
-            } else if (tokensPerSecNum > 25) {
-                rating = '🟡 Moderate';
-                ratingClass = 'moderate';
-            } else if (tokensPerSecNum > 10) {
-                rating = '🟡 Slow';
-                ratingClass = 'slow';
-            } else {
-                rating = '🔴 Very Slow';
-                ratingClass = 'very-slow';
-            }
-            
-            const ratingElement = document.getElementById('performance-rating');
-            if (ratingElement) {
-                ratingElement.textContent = rating;
-                ratingElement.className = `metric-value ${ratingClass}`;
-            }
-            
-            // Performance notes
-            const notesDiv = document.getElementById('performance-notes');
-            if (notesDiv) {
-                let notes = [];
-                // MoE mode note at the top
-                if (window.__isMoESelected) {
-                    const hasActive = typeof window.__moeActiveMemory === 'number' && !isNaN(window.__moeActiveMemory);
-                    const hasTotal = typeof window.__moeTotalMemory === 'number' && !isNaN(window.__moeTotalMemory);
-                    const totalGB = hasTotal ? (window.__moeTotalMemory * quantization).toFixed(1) : null;
-                    const activeGB = hasActive ? (window.__moeActiveMemory * quantization).toFixed(1) : null;
-                    const moeLine = window.__moeOffloadingEnabled
-                        ? (activeGB ? `• MoE offloading ON: VRAM and performance use active experts (~${activeGB} GB)` : `• MoE offloading ON: Using active experts for calculations`)
-                        : (totalGB ? `• MoE offloading OFF: VRAM and performance use full model (~${totalGB} GB)` : `• MoE offloading OFF: Using full model size for calculations`);
-                    notes.push(moeLine);
-                }
-                
-                if (tokensPerSecNum < 25) {
-                    notes.push('• Consider stronger quantization (INT4) for better speed');
-                }
-                if (contextLength > 32768 && tokensPerSecNum < 50) {
-                    notes.push('• Reduce context length for faster generation');
-                }
-                if (gpuCount === 1 && tokensPerSecNum < 30) {
-                    notes.push('• Consider adding more GPUs for better performance');
-                }
-                if (tokensPerSecNum > 50) {
-                    notes.push('• Performance should be smooth for most use cases');
-                }
+}
 
-                const defaultNotes = [
-                    '• Use INT4/FP8 where acceptable to improve speed',
-                    '• Shorter context reduces KV cache size and boosts throughput',
-                    '• Higher memory bandwidth GPUs deliver more tokens/sec'
-                ];
-                
-                const tips = notes.length > 0 ? notes : defaultNotes;
-                notesDiv.innerHTML = `<h4>Performance Tips:</h4>${tips.join('<br>')}`;
-            }
-        } else {
-            performanceSection.style.display = 'none';
-        }
-    } else if (performanceSection) {
-        performanceSection.style.display = 'none';
-    }
-    
-    if (totalVRAM > 0) {
-        document.getElementById('results').classList.remove('hidden');
-    }
-    
-    // Update URL with current configuration
-    if (typeof updateURL === 'function') {
-        updateURL();
+// Update performance metrics: tokens/sec, generation time, rating
+function renderPerformanceMetrics(perf, tokensPerSecNum) {
+    const tokensPerSec = perf.tokensPerSecond.toFixed(2);
+    el('tokens-per-second').textContent = `${tokensPerSec} tokens/sec`;
+
+    // Generation time for 100 tokens
+    const genTime = tokensPerSecNum > 0 ? (100 / tokensPerSecNum).toFixed(1) : 'N/A';
+    el('generation-time').textContent = `${genTime} seconds`;
+
+    // Performance rating
+    let rating = '';
+    let ratingClass = '';
+    if (tokensPerSecNum > RATING_EXCELLENT_TPS) {
+        rating = '🟢 Excellent';
+        ratingClass = 'excellent';
+    } else if (tokensPerSecNum > RATING_GOOD_TPS) {
+        rating = '🟢 Good';
+        ratingClass = 'good';
+    } else if (tokensPerSecNum > RATING_MODERATE_TPS) {
+        rating = '🟡 Moderate';
+        ratingClass = 'moderate';
+    } else if (tokensPerSecNum > RATING_SLOW_TPS) {
+        rating = '🟡 Slow';
+        ratingClass = 'slow';
+    } else {
+        rating = '🔴 Very Slow';
+        ratingClass = 'very-slow';
     }
 
-    // Build/update the performance scenarios table
-    if (typeof buildPerformanceScenarioTable === 'function') {
-        buildPerformanceScenarioTable();
+    const ratingElement = el('performance-rating');
+    if (ratingElement) {
+        ratingElement.textContent = rating;
+        ratingElement.className = `metric-value ${ratingClass}`;
     }
 }
 
-// Build a scenario table showing performance across GPU counts and context lengths
-function buildPerformanceScenarioTable() {
-    const section = document.getElementById('scenario-table-section');
-    const table = document.getElementById('scenario-table');
-    const tbody = table ? table.querySelector('tbody') : null;
-    if (!section || !tbody) return;
+// Update the performance tips/notes block
+function renderPerformanceNotes(inputs, contextLength, tokensPerSecNum) {
+    const notesDiv = el('performance-notes');
+    if (!notesDiv) return;
 
-    const gpuTypeEl = document.getElementById('gpu-type');
+    let notes = [];
+    // MoE mode note at the top
+    if (state.moe.isSelected) {
+        const hasActive = typeof state.moe.activeMemory === 'number' && !isNaN(state.moe.activeMemory);
+        const hasTotal = typeof state.moe.totalMemory === 'number' && !isNaN(state.moe.totalMemory);
+        const totalGB = hasTotal ? (state.moe.totalMemory * inputs.quantization).toFixed(1) : null;
+        const activeGB = hasActive ? (state.moe.activeMemory * inputs.quantization).toFixed(1) : null;
+        const moeLine = state.moe.offloadingEnabled
+            ? (activeGB ? `• MoE offloading ON: VRAM and performance use active experts (~${activeGB} GB)` : `• MoE offloading ON: Using active experts for calculations`)
+            : (totalGB ? `• MoE offloading OFF: VRAM and performance use full model (~${totalGB} GB)` : `• MoE offloading OFF: Using full model size for calculations`);
+        notes.push(moeLine);
+    }
+
+    if (tokensPerSecNum < RATING_MODERATE_TPS) {
+        notes.push('• Consider stronger quantization (INT4) for better speed');
+    }
+    if (contextLength > CONTEXT_THRESHOLD_LARGE && tokensPerSecNum < RATING_GOOD_TPS) {
+        notes.push('• Reduce context length for faster generation');
+    }
+    if (inputs.gpuCount === 1 && tokensPerSecNum < 30) {
+        notes.push('• Consider adding more GPUs for better performance');
+    }
+    if (tokensPerSecNum > RATING_GOOD_TPS) {
+        notes.push('• Performance should be smooth for most use cases');
+    }
+
+    const defaultNotes = [
+        '• Use INT4/FP8 where acceptable to improve speed',
+        '• Shorter context reduces KV cache size and boosts throughput',
+        '• Higher memory bandwidth GPUs deliver more tokens/sec'
+    ];
+
+    const tips = notes.length > 0 ? notes : defaultNotes;
+    notesDiv.innerHTML = `<h4>Performance Tips:</h4>${tips.join('<br>')}`;
+}
+
+// Calculate and display performance if GPU is selected
+function renderPerformance(inputs, modelMemory, contextLength, availableMemory) {
+    const performanceSection = el('performance-section');
+
+    if (!(inputs.gpuType && availableMemory >= 0 && performanceSection)) {
+        if (performanceSection) {
+            performanceSection.style.display = 'none';
+        }
+        return;
+    }
+
+    // Align MoE offloading behavior: when ON, use active experts; when OFF, use total
+    let perfModelMemoryBase = modelMemory;
+    if (state.moe.isSelected) {
+        const hasActive = typeof state.moe.activeMemory === 'number' && !isNaN(state.moe.activeMemory);
+        const hasTotal = typeof state.moe.totalMemory === 'number' && !isNaN(state.moe.totalMemory);
+        if (state.moe.offloadingEnabled) {
+            perfModelMemoryBase = hasActive ? state.moe.activeMemory : modelMemory;
+        } else {
+            perfModelMemoryBase = hasTotal ? state.moe.totalMemory : modelMemory;
+        }
+    }
+    const perfMemoryAdjusted = perfModelMemoryBase * inputs.quantization;
+    const perf = calculatePerformance(perfMemoryAdjusted, inputs.quantization, contextLength, inputs.gpuType, inputs.gpuCount);
+
+    if (!perf) {
+        performanceSection.style.display = 'none';
+        return;
+    }
+
+    performanceSection.style.display = 'block';
+    const tokensPerSecNum = parseFloat(perf.tokensPerSecond.toFixed(2));
+    renderPerformanceMetrics(perf, tokensPerSecNum);
+    renderPerformanceNotes(inputs, contextLength, tokensPerSecNum);
+}
+
+function calculate() {
+    const inputs = readInputs();
+    const modelMemory = resolveModelMemory(inputs.modelInputType);
+    const contextLength = resolveContextLength(inputs.contextInputType);
+
+    // Calculate memory requirements
+    const totalVRAM = inputs.gpuCount * inputs.vramPerGpu;
+    const adjustedModelMemory = modelMemory * inputs.quantization;
+    const kvCachePerRequest = resolveKVCachePerRequest(contextLength, modelMemory, inputs.kvCacheOverhead);
+    const availableMemory = totalVRAM - inputs.systemOverhead - adjustedModelMemory;
+
+    // Calculate concurrent requests
+    const maxConcurrentRequests = availableMemory / kvCachePerRequest;
+    const effectiveContext = contextLength;
+
+    // Update results (metrics + warnings)
+    renderResults({
+        totalVRAM,
+        adjustedModelMemory,
+        kvCachePerRequest,
+        availableMemory,
+        maxConcurrentRequests,
+        effectiveContext
+    });
+
+    // Update performance section
+    renderPerformance(inputs, modelMemory, contextLength, availableMemory);
+
+    if (totalVRAM > 0) {
+        el('results').classList.remove('hidden');
+    }
+
+    // Update URL with current configuration
+    updateURL();
+
+    // Build/update the performance scenarios table
+    buildPerformanceScenarioTable();
+}
+
+// ============================================================================
+// Scenario table
+// ============================================================================
+
+// Format a context length as "8K"-style short label
+const toK = (n) => {
+    if (n >= 1024) return `${Math.round(n / 1024)}K`;
+    return String(n);
+};
+
+// Read and validate the base inputs for the scenario table.
+// Returns null when the section should stay/be hidden (essential selections missing).
+function readScenarioContext() {
+    const section = el('scenario-table-section');
+    const table = el('scenario-table');
+    const tbody = table ? table.querySelector('tbody') : null;
+    if (!section || !tbody) return null;
+
+    const gpuTypeEl = el('gpu-type');
     const gpuType = gpuTypeEl ? gpuTypeEl.value : '';
-    const vramPerGpu = parseFloat(document.getElementById('vram-per-gpu').value) || 0;
-    const systemOverhead = parseFloat(document.getElementById('system-overhead').value) || 2;
-    const quantization = parseFloat(document.getElementById('quantization').value);
-    const kvCacheOverhead = parseFloat(document.getElementById('kv-cache-overhead').value) / 100;
+    const vramPerGpu = parseFloat(el('vram-per-gpu').value) || 0;
+    const systemOverhead = parseFloat(el('system-overhead').value) || 2;
+    const quantization = parseFloat(el('quantization').value);
+    const kvCacheOverhead = parseFloat(el('kv-cache-overhead').value) / 100;
 
     const modelInputType = document.querySelector('input[name="model-input-type"]:checked').value;
-    const modelSelect = document.getElementById('model-preset');
+    const modelSelect = el('model-preset');
     const selectedModelOption = modelSelect && modelSelect.selectedIndex >= 0 ? modelSelect.options[modelSelect.selectedIndex] : null;
 
     // If essential selections are missing, hide the section
     if (!gpuType || vramPerGpu <= 0 || !selectedModelOption) {
         section.style.display = 'none';
-        return;
+        return null;
     }
 
     // Determine MoE and memory base consistent with offloading toggle
     const activeMemoryAttr = selectedModelOption.getAttribute('data-active-memory');
     const totalMemoryAttr = selectedModelOption.getAttribute('data-memory');
     const isMoE = !!activeMemoryAttr;
-    const offloadingEnabled = !!document.getElementById('moe-offloading') && document.getElementById('moe-offloading').checked;
+    const offloadingEnabled = !!el('moe-offloading') && el('moe-offloading').checked;
 
     let perfModelMemoryBase;
     if (isMoE) {
@@ -671,150 +818,154 @@ function buildPerformanceScenarioTable() {
     const quantLabel = quantLabelMap[String(quantization)] || `${quantization}x`;
 
     // Compose GPU counts and contexts to explore (min context 8K)
-    const currentCount = parseInt(document.getElementById('gpu-count').value) || 1;
-    // Build counts around current selection: ±5 window, clip at 1
-    const gpuCounts = [];
-    const startCount = Math.max(1, currentCount - 5);
-    const endCount = currentCount + 5;
-    for (let c = startCount; c <= endCount; c++) {
-        gpuCounts.push(c);
-    }
-    // De-duplicate and sort (in case currentCount < 11 and we later expand)
-    const seenCounts = new Set();
-    const baseCounts = gpuCounts.filter(c => {
-        if (seenCounts.has(c)) return false;
-        seenCounts.add(c);
-        return true;
-    }).sort((a, b) => a - b);
+    const currentCount = parseInt(el('gpu-count').value) || 1;
 
     // Include selected context length plus standard tiers
+    // (kept for parity; the explored contexts are the fixed SCENARIO_CONTEXTS set)
     let selectedContextLength;
     const contextInputType = document.querySelector('input[name="context-input-type"]:checked').value;
     if (contextInputType === 'preset') {
-        selectedContextLength = parseInt(document.getElementById('context-preset').value) || 4096;
+        selectedContextLength = parseInt(el('context-preset').value) || 4096;
     } else {
-        selectedContextLength = parseInt(document.getElementById('context-custom').value) || 4096;
-    }
-    // Limit contexts to the requested set: 8K, 16K, 32K, 64K, 128K
-    const contexts = [8192, 16384, 32768, 65536, 131072];
-
-    // Helper: derive full vs active parameter counts (billions)
-    function deriveModelParamsB() {
-        let fullB = null;
-        let activeB = null;
-        const label = (selectedModelOption.textContent || selectedModelOption.innerText || '').trim();
-        // Try catalog first
-        if (typeof findLLMConfigFromSelectedOption === 'function') {
-            const cfg = findLLMConfigFromSelectedOption(selectedModelOption);
-            if (cfg && typeof cfg.parameter_count_billion === 'number') {
-                fullB = Number(cfg.parameter_count_billion);
-                const moe = cfg.moe || {};
-                if (moe.enabled && typeof moe.num_experts === 'number' && typeof moe.active_experts === 'number' && moe.num_experts > 0) {
-                    activeB = fullB * (moe.active_experts / moe.num_experts);
-                }
-            }
-        }
-        // Fallback: parse from label (supports e.g., "235B-A22B" or "1T-A32B")
-        if (fullB == null) {
-            const mB = label.match(/(\d+(?:\.\d+)?)\s*B/i);
-            const mT = label.match(/(\d+(?:\.\d+)?)\s*T/i);
-            if (mT) fullB = Number(mT[1]) * 1000;
-            else if (mB) fullB = Number(mB[1]);
-        }
-        if (activeB == null) {
-            const a = label.match(/-A(\d+(?:\.\d+)?)B/i);
-            if (a) activeB = Number(a[1]);
-        }
-        // If user is in parameters mode, override with user-provided value
-        if (modelInputType === 'parameters') {
-            const mpEl = document.getElementById('model-parameters');
-            const v = mpEl ? parseFloat(mpEl.value) : NaN;
-            if (!isNaN(v)) {
-                fullB = v;
-                activeB = v;
-            }
-        }
-        return { fullB, activeB };
+        selectedContextLength = parseInt(el('context-custom').value) || 4096;
     }
 
-    const { fullB: modelParamsFullB, activeB: modelParamsActiveB } = deriveModelParamsB();
+    return {
+        section, table, tbody,
+        gpuType, vramPerGpu, systemOverhead, quantization, kvCacheOverhead,
+        modelInputType, selectedModelOption, perfMemoryAdjusted,
+        modelLabel, gpuLabel, quantLabel, currentCount, selectedContextLength
+    };
+}
 
+// Derive full vs active parameter counts (billions) for the selected model
+function deriveModelParamsB(selectedModelOption, modelInputType) {
+    let fullB = null;
+    let activeB = null;
+    const label = (selectedModelOption.textContent || selectedModelOption.innerText || '').trim();
+    // Try catalog first
+    const cfg = findLLMConfigFromSelectedOption(selectedModelOption);
+    if (cfg && typeof cfg.parameter_count_billion === 'number') {
+        fullB = Number(cfg.parameter_count_billion);
+        const moe = cfg.moe || {};
+        if (moe.enabled && typeof moe.num_experts === 'number' && typeof moe.active_experts === 'number' && moe.num_experts > 0) {
+            activeB = fullB * (moe.active_experts / moe.num_experts);
+        }
+    }
+    // Fallback: parse from label (supports e.g., "235B-A22B" or "1T-A32B")
+    if (fullB == null) {
+        const mB = label.match(/(\d+(?:\.\d+)?)\s*B/i);
+        const mT = label.match(/(\d+(?:\.\d+)?)\s*T/i);
+        if (mT) fullB = Number(mT[1]) * 1000;
+        else if (mB) fullB = Number(mB[1]);
+    }
+    if (activeB == null) {
+        const a = label.match(/-A(\d+(?:\.\d+)?)B/i);
+        if (a) activeB = Number(a[1]);
+    }
+    // If user is in parameters mode, override with user-provided value
+    if (modelInputType === 'parameters') {
+        const mpEl = el('model-parameters');
+        const v = mpEl ? parseFloat(mpEl.value) : NaN;
+        if (!isNaN(v)) {
+            fullB = v;
+            activeB = v;
+        }
+    }
+    return { fullB, activeB };
+}
+
+// Format "full / active" params display (or just whichever is available)
+function formatParamsDisplay(fullB, activeB) {
     const formatB = (n) => {
         if (n == null || !isFinite(n)) return '';
         const isInt = Math.abs(n - Math.round(n)) < 1e-9;
         return isInt ? String(Math.round(n)) : n.toFixed(1);
     };
-    const paramsDisplay = (() => {
-        const f = formatB(modelParamsFullB);
-        const a = formatB(modelParamsActiveB);
-        if (f && a && f !== a) return `${f} / ${a}`;
-        return f || a || '';
-    })();
+    const f = formatB(fullB);
+    const a = formatB(activeB);
+    if (f && a && f !== a) return `${f} / ${a}`;
+    return f || a || '';
+}
 
-    // Build rows
+// Build GPU counts around the current selection: ±5 window, clipped at 1
+function buildScenarioGPUCounts(currentCount) {
+    const gpuCounts = [];
+    const startCount = Math.max(1, currentCount - SCENARIO_GPU_COUNT_WINDOW);
+    const endCount = currentCount + SCENARIO_GPU_COUNT_WINDOW;
+    for (let c = startCount; c <= endCount; c++) {
+        gpuCounts.push(c);
+    }
+    // De-duplicate and sort (in case currentCount < 11 and we later expand)
+    const seenCounts = new Set();
+    return gpuCounts.filter(c => {
+        if (seenCounts.has(c)) return false;
+        seenCounts.add(c);
+        return true;
+    }).sort((a, b) => a - b);
+}
+
+// Build one scenario row, or null when the scenario is not runnable.
+// Filter: must fit model and at least 1 request, context >= 8K, and tps > 0.
+// paramsDisplay: when non-null the row carries modelParamsB; extension rows
+// (below the minimum-row guarantee) intentionally omit it by passing null.
+function buildScenarioRow(base, gc, ctx, paramsDisplay) {
+    const totalVRAM = gc * base.vramPerGpu;
+    const availableMemory = totalVRAM - base.systemOverhead - base.perfMemoryAdjusted;
+    // KV cache per request for this context
+    const kvPerReq = computeKVCacheGB(ctx, base.selectedModelOption, KV_BYTES_PER_VALUE, base.kvCacheOverhead);
+    const maxReqRaw = availableMemory / kvPerReq;
+    const maxReq = Math.max(0, maxReqRaw);
+    const perf = calculatePerformance(base.perfMemoryAdjusted, base.quantization, ctx, base.gpuType, gc);
+    const tpsNum = perf ? Number(perf.tokensPerSecond) : 0;
+    const genTimeNum = tpsNum > 0 ? (100 / tpsNum) : Infinity;
+    const runnable = (availableMemory >= kvPerReq) && (maxReqRaw >= 1) && (ctx >= CONTEXT_THRESHOLD_MEDIUM) && (tpsNum > 0);
+    if (!runnable) return null;
+    const row = {
+        model: base.modelLabel,
+        gpu: base.gpuLabel || base.gpuType,
+        gpuCount: gc,
+        quant: base.quantLabel,
+        context: ctx,
+        maxConcurrent: maxReq.toFixed(2),
+        tokensPerSec: tpsNum.toFixed(2),
+        tokensPerSecNum: tpsNum,
+        genTime: Number.isFinite(genTimeNum) ? `${genTimeNum.toFixed(1)} s` : 'N/A',
+        genTimeNum: genTimeNum
+    };
+    if (paramsDisplay !== null) {
+        row.modelParamsB = paramsDisplay;
+    }
+    return row;
+}
+
+// Build all scenario rows, extending GPU counts upward until >= SCENARIO_MIN_ROWS
+function buildScenarioRows(base) {
+    const { fullB: modelParamsFullB, activeB: modelParamsActiveB } = deriveModelParamsB(base.selectedModelOption, base.modelInputType);
+    // Use derived display for model params (full / active if available)
+    const paramsDisplay = formatParamsDisplay(modelParamsFullB, modelParamsActiveB);
+
+    const baseCounts = buildScenarioGPUCounts(base.currentCount);
+
     const rows = [];
     baseCounts.forEach(gc => {
-        const totalVRAM = gc * vramPerGpu;
-        const availableMemory = totalVRAM - systemOverhead - perfMemoryAdjusted;
-        contexts.forEach(ctx => {
-            // KV cache per request for this context
-            const kvPerReq = computeKVCacheGB(ctx, selectedModelOption, 2, kvCacheOverhead);
-            const maxReqRaw = availableMemory / kvPerReq;
-            const maxReq = Math.max(0, maxReqRaw);
-            const perf = calculatePerformance(perfMemoryAdjusted, quantization, ctx, gpuType, gc);
-            const tpsNum = perf ? Number(perf.tokensPerSecond) : 0;
-            const genTimeNum = tpsNum > 0 ? (100 / tpsNum) : Infinity;
-            // Use derived display for model params (full / active if available)
-            const modelParamsB = paramsDisplay;
-            // Filter: must fit model and at least 1 request, context >= 8K, and tps > 0
-            const runnable = (availableMemory >= kvPerReq) && (maxReqRaw >= 1) && (ctx >= 8192) && (tpsNum > 0);
-            if (runnable) {
-                rows.push({
-                    model: modelLabel,
-                    gpu: gpuLabel || gpuType,
-                    gpuCount: gc,
-                    quant: quantLabel,
-                    context: ctx,
-                    maxConcurrent: maxReq.toFixed(2),
-                    tokensPerSec: tpsNum.toFixed(2),
-                    tokensPerSecNum: tpsNum,
-                    genTime: Number.isFinite(genTimeNum) ? `${genTimeNum.toFixed(1)} s` : 'N/A',
-                    genTimeNum: genTimeNum,
-                    modelParamsB: modelParamsB
-                });
-            }
+        SCENARIO_CONTEXTS.forEach(ctx => {
+            const row = buildScenarioRow(base, gc, ctx, paramsDisplay);
+            if (row) rows.push(row);
         });
     });
 
     // Guarantee at least 10 recommendations by extending counts upward if needed
-    if (rows.length < 10) {
-        let gc = (baseCounts.length > 0 ? baseCounts[baseCounts.length - 1] + 1 : currentCount + 1);
+    if (rows.length < SCENARIO_MIN_ROWS) {
+        let gc = (baseCounts.length > 0 ? baseCounts[baseCounts.length - 1] + 1 : base.currentCount + 1);
         let safety = 0;
-        while (rows.length < 10 && safety < 200) {
-            const totalVRAM = gc * vramPerGpu;
-            const availableMemory = totalVRAM - systemOverhead - perfMemoryAdjusted;
-            for (const ctx of contexts) {
-                const kvPerReq = computeKVCacheGB(ctx, selectedModelOption, 2, kvCacheOverhead);
-                const maxReqRaw = availableMemory / kvPerReq;
-                const maxReq = Math.max(0, maxReqRaw);
-                const perf = calculatePerformance(perfMemoryAdjusted, quantization, ctx, gpuType, gc);
-                const tpsNum = perf ? Number(perf.tokensPerSecond) : 0;
-                const genTimeNum = tpsNum > 0 ? (100 / tpsNum) : Infinity;
-                const runnable = (availableMemory >= kvPerReq) && (maxReqRaw >= 1) && (ctx >= 8192) && (tpsNum > 0);
-                if (runnable) {
-                    rows.push({
-                        model: modelLabel,
-                        gpu: gpuLabel || gpuType,
-                        gpuCount: gc,
-                        quant: quantLabel,
-                        context: ctx,
-                        maxConcurrent: maxReq.toFixed(2),
-                        tokensPerSec: tpsNum.toFixed(2),
-                        tokensPerSecNum: tpsNum,
-                        genTime: Number.isFinite(genTimeNum) ? `${genTimeNum.toFixed(1)} s` : 'N/A',
-                        genTimeNum: genTimeNum
-                    });
-                    if (rows.length >= 10) break;
+        while (rows.length < SCENARIO_MIN_ROWS && safety < SCENARIO_EXTEND_SAFETY_CAP) {
+            for (const ctx of SCENARIO_CONTEXTS) {
+                // Extension rows omit modelParamsB
+                const row = buildScenarioRow(base, gc, ctx, null);
+                if (row) {
+                    rows.push(row);
+                    if (rows.length >= SCENARIO_MIN_ROWS) break;
                 }
             }
             gc++;
@@ -822,124 +973,133 @@ function buildPerformanceScenarioTable() {
         }
     }
 
-    // Render table
-    const toK = (n) => {
-        if (n >= 1024) return `${Math.round(n / 1024)}K`;
-        return String(n);
-    };
-    function renderScenarioRows(currentRows) {
-        // Persist rows for copy/download and keep in sync with sort
-        window.__scenarioRows = currentRows;
-        tbody.innerHTML = currentRows.map(r => (
-            `<tr>
-                <td class="py-1 pr-3">${r.model}</td>
-                <td class="py-1 pr-3">${r.gpu}</td>
-                <td class="py-1 pr-3">${r.gpuCount}</td>
-                <td class="py-1 pr-3">${r.quant}</td>
-                <td class="py-1 pr-3">${toK(r.context)} tokens</td>
-                <td class="py-1 pr-3">${r.maxConcurrent}</td>
-                <td class="py-1 pr-3">${r.tokensPerSec}</td>
-                <td class="py-1 pr-3">${r.genTime}</td>
-            </tr>`
-        )).join('');
-    }
-
-    // Base rows before filtering/sorting
-    window.__scenarioBaseRows = rows;
-
-    // Filtering
-    function applyScenarioFilters(baseRows) {
-        const ctxSelEl = document.getElementById('scenario-filter-context');
-        const minTpsEl = document.getElementById('scenario-filter-min-tps');
-        const ctxSel = ctxSelEl ? ctxSelEl.value : 'all';
-        const minTps = minTpsEl ? Number(minTpsEl.value) : NaN;
-        return baseRows.filter(r => {
-            if (ctxSel !== 'all' && r.context !== Number(ctxSel)) return false;
-            if (!isNaN(minTps) && r.tokensPerSecNum < minTps) return false;
-            return true;
-        });
-    }
-
-    let filteredRows = applyScenarioFilters(rows);
-
-    // Sorting
-    function sortRows(rowsToSort) {
-        const prev = window.__scenarioSortState || { key: null, dir: 'asc' };
-        const key = prev.key;
-        const dir = prev.dir;
-        if (!key) return rowsToSort;
-        const numericKeys = new Set(['gpuCount', 'context', 'maxConcurrent', 'tokensPerSecNum', 'genTimeNum']);
-        const getVal = (row, key) => {
-            if (key === 'tokensPerSec') return row.tokensPerSecNum || Number(row.tokensPerSec) || 0;
-            return numericKeys.has(key) ? Number(row[key]) : String(row[key] || '').toLowerCase();
-        };
-        const copy = [...rowsToSort];
-        copy.sort((a, b) => {
-            const va = getVal(a, key);
-            const vb = getVal(b, key);
-            if (typeof va === 'number' && typeof vb === 'number' && !isNaN(va) && !isNaN(vb)) {
-                return dir === 'asc' ? va - vb : vb - va;
-            }
-            const cmp = String(va).localeCompare(String(vb));
-            return dir === 'asc' ? cmp : -cmp;
-        });
-        return copy;
-    }
-
-    const finalRows = sortRows(filteredRows);
-    renderScenarioRows(finalRows);
-
-    // Bind sortable headers (idempotent)
-    if (!window.__scenarioSortingBound) {
-        const headerCells = table.querySelectorAll('thead th[data-key]');
-        const numericKeys = new Set(['gpuCount', 'context', 'maxConcurrent', 'tokensPerSecNum', 'genTimeNum', 'ratingRank']);
-        const getVal = (row, key) => {
-            if (key === 'tokensPerSec') return row.tokensPerSecNum || Number(row.tokensPerSec) || 0;
-            const v = row[key];
-            return numericKeys.has(key) ? Number(v) : String(v || '').toLowerCase();
-        };
-        headerCells.forEach(th => {
-            th.addEventListener('click', () => {
-                const key = th.getAttribute('data-key');
-                const prev = window.__scenarioSortState || { key: null, dir: 'asc' };
-                const dir = prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc';
-                window.__scenarioSortState = { key, dir };
-                const base = Array.isArray(window.__scenarioBaseRows) ? window.__scenarioBaseRows : [];
-                const filtered = applyScenarioFilters(base);
-                const sorted = sortRows(filtered);
-                renderScenarioRows(sorted);
-
-                // Update header sort indicators
-                headerCells.forEach(h => { h.classList.remove('sorted-asc', 'sorted-desc'); h.removeAttribute('aria-sort'); });
-                th.classList.add(dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
-                th.setAttribute('aria-sort', dir);
-            });
-        });
-        window.__scenarioSortingBound = true;
-    }
-
-    // Bind filter controls (idempotent)
-    if (!window.__scenarioFiltersBound) {
-        const ctxSelEl = document.getElementById('scenario-filter-context');
-        const minTpsEl = document.getElementById('scenario-filter-min-tps');
-        const reapply = () => {
-            const base = Array.isArray(window.__scenarioBaseRows) ? window.__scenarioBaseRows : [];
-            const filtered = applyScenarioFilters(base);
-            const sorted = sortRows(filtered);
-            renderScenarioRows(sorted);
-        };
-        if (ctxSelEl) ctxSelEl.addEventListener('change', reapply);
-        if (minTpsEl) minTpsEl.addEventListener('input', reapply);
-        window.__scenarioFiltersBound = true;
-    }
-
-    section.style.display = rows.length > 0 ? 'block' : 'none';
+    return rows;
 }
 
-// Copy scenario table as CSV to clipboard
-function copyScenarioTable() {
-    const rows = Array.isArray(window.__scenarioRows) ? window.__scenarioRows : [];
-    if (rows.length === 0) return;
+// Render scenario rows into the table body.
+// Persists rows for copy/download and keeps them in sync with sort.
+function renderScenarioRows(tbody, currentRows) {
+    state.scenario.rows = currentRows;
+    tbody.innerHTML = currentRows.map(r => (
+        `<tr>
+            <td class="py-1 pr-3">${r.model}</td>
+            <td class="py-1 pr-3">${r.gpu}</td>
+            <td class="py-1 pr-3">${r.gpuCount}</td>
+            <td class="py-1 pr-3">${r.quant}</td>
+            <td class="py-1 pr-3">${toK(r.context)} tokens</td>
+            <td class="py-1 pr-3">${r.maxConcurrent}</td>
+            <td class="py-1 pr-3">${r.tokensPerSec}</td>
+            <td class="py-1 pr-3">${r.genTime}</td>
+        </tr>`
+    )).join('');
+}
+
+// Filtering
+function applyScenarioFilters(baseRows) {
+    const ctxSelEl = el('scenario-filter-context');
+    const minTpsEl = el('scenario-filter-min-tps');
+    const ctxSel = ctxSelEl ? ctxSelEl.value : 'all';
+    const minTps = minTpsEl ? Number(minTpsEl.value) : NaN;
+    return baseRows.filter(r => {
+        if (ctxSel !== 'all' && r.context !== Number(ctxSel)) return false;
+        if (!isNaN(minTps) && r.tokensPerSecNum < minTps) return false;
+        return true;
+    });
+}
+
+// Value extractor for sorting (shared by sortRows)
+const scenarioSortValue = (row, key) => {
+    if (key === 'tokensPerSec') return row.tokensPerSecNum || Number(row.tokensPerSec) || 0;
+    return SCENARIO_NUMERIC_SORT_KEYS.has(key) ? Number(row[key]) : String(row[key] || '').toLowerCase();
+};
+
+// Sorting
+function sortScenarioRows(rowsToSort) {
+    const prev = state.scenario.sortState || { key: null, dir: 'asc' };
+    const key = prev.key;
+    const dir = prev.dir;
+    if (!key) return rowsToSort;
+    const copy = [...rowsToSort];
+    copy.sort((a, b) => {
+        const va = scenarioSortValue(a, key);
+        const vb = scenarioSortValue(b, key);
+        if (typeof va === 'number' && typeof vb === 'number' && !isNaN(va) && !isNaN(vb)) {
+            return dir === 'asc' ? va - vb : vb - va;
+        }
+        const cmp = String(va).localeCompare(String(vb));
+        return dir === 'asc' ? cmp : -cmp;
+    });
+    return copy;
+}
+
+// Bind sortable headers (idempotent — runs once)
+function bindScenarioSorting(table, tbody) {
+    if (state.scenario.sortingBound) return;
+    const headerCells = table.querySelectorAll('thead th[data-key]');
+    headerCells.forEach(th => {
+        th.addEventListener('click', () => {
+            const key = th.getAttribute('data-key');
+            const prev = state.scenario.sortState || { key: null, dir: 'asc' };
+            const dir = prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc';
+            state.scenario.sortState = { key, dir };
+            const base = Array.isArray(state.scenario.baseRows) ? state.scenario.baseRows : [];
+            const filtered = applyScenarioFilters(base);
+            const sorted = sortScenarioRows(filtered);
+            renderScenarioRows(tbody, sorted);
+
+            // Update header sort indicators
+            headerCells.forEach(h => { h.classList.remove('sorted-asc', 'sorted-desc'); h.removeAttribute('aria-sort'); });
+            th.classList.add(dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+            th.setAttribute('aria-sort', dir);
+        });
+    });
+    state.scenario.sortingBound = true;
+}
+
+// Bind filter controls (idempotent — runs once)
+function bindScenarioFilters(tbody) {
+    if (state.scenario.filtersBound) return;
+    const ctxSelEl = el('scenario-filter-context');
+    const minTpsEl = el('scenario-filter-min-tps');
+    const reapply = () => {
+        const base = Array.isArray(state.scenario.baseRows) ? state.scenario.baseRows : [];
+        const filtered = applyScenarioFilters(base);
+        const sorted = sortScenarioRows(filtered);
+        renderScenarioRows(tbody, sorted);
+    };
+    if (ctxSelEl) ctxSelEl.addEventListener('change', reapply);
+    if (minTpsEl) minTpsEl.addEventListener('input', reapply);
+    state.scenario.filtersBound = true;
+}
+
+// Build a scenario table showing performance across GPU counts and context lengths
+function buildPerformanceScenarioTable() {
+    const base = readScenarioContext();
+    if (!base) return;
+
+    const rows = buildScenarioRows(base);
+
+    // Base rows before filtering/sorting
+    state.scenario.baseRows = rows;
+
+    const filteredRows = applyScenarioFilters(rows);
+    const finalRows = sortScenarioRows(filteredRows);
+    renderScenarioRows(base.tbody, finalRows);
+
+    bindScenarioSorting(base.table, base.tbody);
+    bindScenarioFilters(base.tbody);
+
+    base.section.style.display = rows.length > 0 ? 'block' : 'none';
+}
+
+// ============================================================================
+// CSV export
+// ============================================================================
+
+// Build the scenario table CSV string; returns null when there are no rows
+function buildScenarioCSV() {
+    const rows = Array.isArray(state.scenario.rows) ? state.scenario.rows : [];
+    if (rows.length === 0) return null;
     const headers = ['Model','Model Parameters (B)','GPU','Number of GPUs','Quantization','Context Length','Max Concurrent Requests','Tokens per Second','Time for 100 Tokens (s)'];
     const esc = (v) => {
         const s = v == null ? '' : String(v);
@@ -962,7 +1122,13 @@ function copyScenarioTable() {
         esc(r.tokensPerSec),
         esc(Number.isFinite(r.genTimeNum) ? r.genTimeNum.toFixed(1) : '')
     ].join(',')));
-    const csv = csvRows.join('\n');
+    return csvRows.join('\n');
+}
+
+// Copy scenario table as CSV to clipboard
+function copyScenarioTable() {
+    const csv = buildScenarioCSV();
+    if (csv === null) return;
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(csv).catch(() => {});
     }
@@ -970,31 +1136,8 @@ function copyScenarioTable() {
 
 // Download scenario table as CSV
 function downloadScenarioTable() {
-    const rows = Array.isArray(window.__scenarioRows) ? window.__scenarioRows : [];
-    if (rows.length === 0) return;
-    const headers = ['Model','Model Parameters (B)','GPU','Number of GPUs','Quantization','Context Length','Max Concurrent Requests','Tokens per Second','Time for 100 Tokens (s)'];
-    const esc = (v) => {
-        const s = v == null ? '' : String(v);
-        const escaped = s.replace(/"/g, '""');
-        return /[",\n]/.test(escaped) ? `"${escaped}"` : escaped;
-    };
-    const fmtCtx = (n) => {
-        const num = Number(n);
-        if (!isFinite(num)) return '';
-        return num >= 1024 ? `${Math.round(num / 1024)}k` : String(num);
-    };
-    const csvRows = [headers.join(',')].concat(rows.map(r => [
-        esc(r.model),
-        esc(r.modelParamsB ?? ''),
-        esc(r.gpu),
-        esc(r.gpuCount),
-        esc(r.quant),
-        esc(fmtCtx(r.context)),
-        esc(r.maxConcurrent),
-        esc(r.tokensPerSec),
-        esc(Number.isFinite(r.genTimeNum) ? r.genTimeNum.toFixed(1) : '')
-    ].join(',')));
-    const csv = csvRows.join('\n');
+    const csv = buildScenarioCSV();
+    if (csv === null) return;
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1006,6 +1149,11 @@ function downloadScenarioTable() {
     URL.revokeObjectURL(url);
 }
 
+// ============================================================================
+// ASCII art
+// ============================================================================
+
+// NOTE: currently dormant — no #ascii-art markup on this page; kept intentionally.
 // ASCII Art Style - Circuit Board (GPU version)
 const asciiArt = `▓█████ ▓█████  ██▓      █████▒██░ ██  ▒█████    ██████ ▄▄▄█████▓ ██▓     ██▓     ███▄ ▄███▓
 ▒██    ▒██   ▀ ▓██▒    ▓██   ▒▓██░ ██▒▒██▒  ██▒▒██    ▒ ▓  ██▒ ▓▒▓██▒    ▓██▒    ▓██▒▀█▀ ██▒
@@ -1015,41 +1163,50 @@ const asciiArt = `▓█████ ▓█████  ██▓      ██�
  ▓█   ▓██▒░ ▒░ ░░ ▒░▓  ░ ▒ ░    ▒ ░░▒░▒░ ▒░▒░▒░ ▒ ▒▓▒ ▒ ░  ▒ ░░   ░ ▒░▓  ░░ ▒░▓  ░░ ▒░   ░  ░`;
 
 // Display ASCII art on page load
+// NOTE: currently dormant — no markup on this page; kept intentionally.
 function displayAsciiArt() {
-    const asciiElement = document.getElementById('ascii-art');
+    const asciiElement = el('ascii-art');
     if (asciiElement) {
         asciiElement.textContent = asciiArt;
     }
 }
 
+// ============================================================================
+// Dialogs
+// ============================================================================
+
+// NOTE: currently dormant — no #shareDialog/#shareUrl markup on this page; kept intentionally.
 // Share dialog functions
 function showShareDialog() {
-    const dialog = document.getElementById('shareDialog');
-    const overlay = document.getElementById('overlay');
-    const urlContainer = document.getElementById('shareUrl');
-    
+    const dialog = el('shareDialog');
+    const overlay = el('overlay');
+    const urlContainer = el('shareUrl');
+
     urlContainer.textContent = window.location.href;
-    
+
     dialog.classList.add('active');
     overlay.classList.add('active');
 }
 
+// NOTE: currently dormant — no markup on this page; kept intentionally.
 function closeShareDialog() {
-    const dialog = document.getElementById('shareDialog');
-    const overlay = document.getElementById('overlay');
-    
+    const dialog = el('shareDialog');
+    const overlay = el('overlay');
+
     dialog.classList.remove('active');
     overlay.classList.remove('active');
 }
 
+// NOTE: currently dormant — no markup on this page; kept intentionally.
+// Relies on the implicit global `event`; do not convert this file to strict mode/modules.
 function copyShareLink() {
-    const urlText = document.getElementById('shareUrl').textContent;
-    
+    const urlText = el('shareUrl').textContent;
+
     navigator.clipboard.writeText(urlText).then(() => {
         const copyButton = event.target;
         const originalText = copyButton.textContent;
         copyButton.textContent = '✅ Copied!';
-        
+
         setTimeout(() => {
             copyButton.textContent = originalText;
         }, 2000);
@@ -1061,11 +1218,11 @@ function copyShareLink() {
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        
+
         const copyButton = event.target;
         const originalText = copyButton.textContent;
         copyButton.textContent = '✅ Copied!';
-        
+
         setTimeout(() => {
             copyButton.textContent = originalText;
         }, 2000);
@@ -1075,9 +1232,9 @@ function copyShareLink() {
 // Show explanation dialog
 function showHowCalculated(event) {
     event.preventDefault();
-    const dialog = document.getElementById('explanationDialog');
-    const overlay = document.getElementById('overlay');
-    
+    const dialog = el('explanationDialog');
+    const overlay = el('overlay');
+
     dialog.classList.add('active');
     overlay.classList.add('active');
     overlay.onclick = closeExplanationDialog;
@@ -1085,9 +1242,9 @@ function showHowCalculated(event) {
 
 // Close explanation dialog
 function closeExplanationDialog() {
-    const dialog = document.getElementById('explanationDialog');
-    const overlay = document.getElementById('overlay');
-    
+    const dialog = el('explanationDialog');
+    const overlay = el('overlay');
+
     dialog.classList.remove('active');
     overlay.classList.remove('active');
     overlay.onclick = closeShareDialog;
@@ -1096,9 +1253,9 @@ function closeExplanationDialog() {
 // Show performance explanation dialog
 function showPerformanceExplanation(event) {
     event.preventDefault();
-    const dialog = document.getElementById('performanceExplanationDialog');
-    const overlay = document.getElementById('overlay');
-    
+    const dialog = el('performanceExplanationDialog');
+    const overlay = el('overlay');
+
     dialog.classList.add('active');
     overlay.classList.add('active');
     overlay.onclick = closePerformanceExplanation;
@@ -1106,13 +1263,17 @@ function showPerformanceExplanation(event) {
 
 // Close performance explanation dialog
 function closePerformanceExplanation() {
-    const dialog = document.getElementById('performanceExplanationDialog');
-    const overlay = document.getElementById('overlay');
-    
+    const dialog = el('performanceExplanationDialog');
+    const overlay = el('overlay');
+
     dialog.classList.remove('active');
     overlay.classList.remove('active');
     overlay.onclick = closeShareDialog;
 }
+
+// ============================================================================
+// Escape-key handling
+// ============================================================================
 
 // Close dialog on Escape key
 document.addEventListener('keydown', (e) => {
@@ -1123,6 +1284,10 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ============================================================================
+// Init (window.onload)
+// ============================================================================
+
 // Initialize on page load
 window.onload = async function() {
     displayAsciiArt();
@@ -1130,14 +1295,12 @@ window.onload = async function() {
     await augmentCalculatorGPUOptionsFromCatalog();
 
     // Load LLM catalog for architecture details (layers, hidden size)
-    if (typeof loadLLMCatalog === 'function') {
-        try {
-            await loadLLMCatalog();
-        } catch (e) {
-            console.warn('Could not load LLM catalog', e);
-        }
+    try {
+        await loadLLMCatalog();
+    } catch (e) {
+        console.warn('Could not load LLM catalog', e);
     }
-    
+
     // First check if we have URL parameters
     if (window.location.search) {
         loadFromURL();
@@ -1149,8 +1312,9 @@ window.onload = async function() {
         calculate();
     }
 
+    // NOTE: currently dormant — no #theme-toggle markup on this page; kept intentionally.
     // Theme toggle for calculator page
-    const themeToggle = document.getElementById('theme-toggle');
+    const themeToggle = el('theme-toggle');
     if (themeToggle) {
         themeToggle.addEventListener('click', () => {
             const body = document.body;
@@ -1169,6 +1333,10 @@ window.onload = async function() {
         });
     }
 };
+
+// ============================================================================
+// LLM catalog loading and KV-cache math
+// ============================================================================
 
 // --- LLM Catalog Loading and Lookup ---
 let _llmCatalog = null;
@@ -1237,7 +1405,7 @@ function computeKVCacheGB(contextLength, optionEl, bytesPerElem, overheadFractio
     const arch = catalog ? { num_layers: catalog.num_layers, hidden_size: catalog.hidden_size } : heuristicArchitecture(optionEl);
     const L = Math.max(1, parseInt(arch.num_layers || 0) || 32);
     const H = Math.max(1, parseInt(arch.hidden_size || 0) || 4096);
-    const bytesPerElement = bytesPerElem || 2; // fp16/bf16 typical for KV
+    const bytesPerElement = bytesPerElem || KV_BYTES_PER_VALUE; // fp16/bf16 typical for KV
     const overhead = Math.max(0, overheadFraction || 0);
 
     // KV bytes = context_len × L × 2 (K+V) × H × bytes_per_elem

@@ -5,18 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GPU Calculator Pro - Advanced GPU Calculator for AI Workloads</title>
     <meta name="description" content="Optimize your GPU requirements with precision calculations for AI and ML workloads. Advanced calculator for model selection, quantization, and performance estimation.">
-    
+
     <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    
-    <!-- Core Libraries -->
+
+    <!-- Core Libraries (echarts: memory chart; anime.js: scroll/hover animations) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/typed.js/2.0.12/typed.min.js"></script>
-    <script src="https://unpkg.com/splitting@1.0.6/dist/splitting.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/splitting@1.0.6/dist/splitting.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -30,147 +26,88 @@
                         'sage': '#7fb069',
                         'charcoal': '#2d3748',
                         'soft-gray': '#e2e8f0',
-                        'deep-charcoal': '#1a202c'
+                        'deep-charcoal': '#1a202c',
+                        // Primary accent, aligned with the calculator page (selfhost-llm.css --color-accent)
+                        'accent': '#3b82f6'
                     },
                     fontFamily: {
                         'mono': ['JetBrains Mono', 'monospace'],
                         'sans': ['Inter', 'sans-serif']
-                    },
-                    animation: {
-                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                        'float': 'float 6s ease-in-out infinite',
-                        'glow': 'glow 2s ease-in-out infinite alternate'
                     }
                 }
             }
         }
     </script>
-    
+
     <style>
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-        }
-        
-        @keyframes glow {
-            from { box-shadow: 0 0 20px rgba(0, 212, 255, 0.3); }
-            to { box-shadow: 0 0 30px rgba(0, 212, 255, 0.6); }
-        }
-        
+        /* Shared visual tokens, aligned with selfhost-llm.css (calculator page) */
         .gradient-text {
-            background: linear-gradient(135deg, #00d4ff, #7fb069);
+            background: linear-gradient(90deg, #3b82f6, #10b981);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
-        
+
         .glass-effect {
-            background: rgba(45, 55, 72, 0.8);
-            backdrop-filter: blur(10px);
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 0.75rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
-        
+
         .hover-lift {
             transition: all 0.3s ease;
         }
-        
+
         .hover-lift:hover {
             transform: translateY(-4px);
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-        }
-        
-        .slider-thumb::-webkit-slider-thumb {
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #00d4ff;
-            cursor: pointer;
-            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-        }
-        
-        .slider-thumb::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #00d4ff;
-            cursor: pointer;
-            border: none;
-            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
-        }
-        
-        #particles-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            z-index: -1;
-            opacity: 0.3;
-        }
-        
-        .typing-cursor {
-            animation: blink 1s infinite;
-        }
-        
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0; }
         }
     </style>
     <!-- Styles specific to SelfHostLLM are loaded on calculator.html only -->
 </head>
 
-<body class="bg-charcoal text-soft-gray font-sans overflow-x-hidden">
-    <!-- Particle Background -->
-    <div id="particles-canvas"></div>
-    
+<body class="bg-deep-charcoal text-soft-gray font-sans overflow-x-hidden">
     <!-- Navigation Header -->
     <header class="fixed top-0 left-0 right-0 z-50 glass-effect">
         <div class="max-w-7xl mx-auto px-6 py-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">
-                    <div class="w-8 h-8 bg-electric rounded-lg flex items-center justify-center">
+                    <div class="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
                         <span class="text-navy font-bold text-sm">GPU</span>
                     </div>
                     <h1 class="text-xl font-bold gradient-text">GPU Calculator Pro</h1>
                 </div>
                 <nav class="hidden md:flex items-center space-x-8">
-                    <a href="#gpu" class="text-soft-gray hover:text-electric transition-colors">GPU</a>
-                    <a href="#models" class="text-soft-gray hover:text-electric transition-colors">Open Source Models</a>
-                    <a href="calculator.html" class="text-soft-gray hover:text-electric transition-colors">Calculator</a>
+                    <a href="#gpu" class="text-soft-gray hover:text-accent transition-colors">GPU</a>
+                    <a href="#models" class="text-soft-gray hover:text-accent transition-colors">Open Source Models</a>
+                    <a href="calculator.html" class="text-soft-gray hover:text-accent transition-colors">Calculator</a>
                 </nav>
             </div>
         </div>
     </header>
 
-    <!-- Hero Section -->
-    <section class="relative pt-24 pb-16 overflow-hidden">
-        <div class="absolute inset-0 bg-gradient-to-br from-navy via-charcoal to-deep-charcoal"></div>
-        <div class="absolute inset-0 opacity-20">
-            <img src="resources/hero-datacenter.png" alt="Data Center" class="w-full h-full object-cover">
-        </div>
-        
-        <div class="relative max-w-7xl mx-auto px-6 py-20">
-            <div class="text-center">
-                <h2 class="text-5xl md:text-7xl font-bold mb-6 gradient-text" data-splitting>
-                    Advanced GPU Calculator
-                </h2>
-                <div class="text-xl md:text-2xl mb-8 max-w-3xl mx-auto">
-                    <span id="typed-text"></span>
-                </div>
-                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                    <a href="calculator.html" class="px-8 py-4 bg-electric text-navy font-semibold rounded-lg hover-lift glow">
-                        Start Calculating
-                    </a>
-                    <a href="calculation_engine.md" target="_blank" class="px-8 py-4 border-2 border-electric text-electric font-semibold rounded-lg hover-lift">
-                        View Documentation
-                    </a>
-                </div>
+    <!-- Page Intro -->
+    <section class="pt-28 pb-8">
+        <div class="max-w-7xl mx-auto px-6 text-center">
+            <h2 class="text-3xl md:text-4xl font-bold mb-4 gradient-text">GPU &amp; Open Source Model Catalogs</h2>
+            <p class="text-lg text-soft-gray/80 max-w-2xl mx-auto mb-8">
+                Browse current GPUs and popular open-source models for LLM workloads, then estimate the memory you need to self-host them.
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                <a href="calculator.html" class="inline-block px-6 py-3 bg-accent text-white font-semibold rounded-lg hover:bg-[#60a5fa] transition-colors">
+                    Open GPU Calculator
+                </a>
+                <a href="calculation_engine.md" target="_blank" class="text-accent hover:underline">
+                    View Documentation
+                </a>
             </div>
         </div>
     </section>
 
     <!-- GPU Page -->
-    <section id="gpu" class="py-16 bg-navy/30">
+    <section id="gpu" class="py-16">
         <div class="w-[90%] mx-auto px-6">
             <div class="text-center mb-12">
                 <h3 class="text-3xl md:text-4xl font-bold mb-4 gradient-text">GPU Explorer</h3>
@@ -183,28 +120,28 @@
                     <div class="flex items-center gap-4">
                         <h4 class="text-xl font-semibold">Current GPUs for LLMs</h4>
                         <!-- Toggle: Cards ↔ Table -->
-                        <button id="gpu-catalog-view-toggle" aria-label="Toggle GPU catalog view" class="relative w-20 h-8 bg-navy/70 border border-soft-gray/20 rounded-full flex items-center px-1 justify-start hover:bg-navy/80 transition-colors">
+                        <button id="gpu-catalog-view-toggle" aria-label="Toggle GPU catalog view" class="relative w-20 h-8 bg-white/5 border border-white/10 rounded-full flex items-center px-1 justify-start hover:bg-white/10 transition-colors">
                             <span class="text-[10px] absolute left-2 text-soft-gray/60 select-none">Cards</span>
                             <span class="text-[10px] absolute right-2 text-soft-gray/60 select-none">Table</span>
-                            <div id="gpu-catalog-view-knob" class="w-8 h-6 bg-electric rounded-full transition-all"></div>
+                            <div id="gpu-catalog-view-knob" class="w-8 h-6 bg-accent rounded-full transition-all"></div>
                         </button>
                     </div>
                     <!-- GPU Filters -->
                     <div class="flex flex-wrap gap-3">
-                        <select id="gpu-vendor-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                        <select id="gpu-vendor-filter" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
                             <option value="">All Vendors</option>
                         </select>
-                        <select id="gpu-architecture-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                        <select id="gpu-architecture-filter" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
                             <option value="">All Architectures</option>
                         </select>
-                        <select id="gpu-memory-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                        <select id="gpu-memory-filter" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
                             <option value="">All Memory</option>
                             <option value="8-16">8-16 GB</option>
                             <option value="16-32">16-32 GB</option>
                             <option value="32-64">32-64 GB</option>
                             <option value="64+">64+ GB</option>
                         </select>
-                        <button id="gpu-clear-filters" class="px-3 py-1 bg-amber/20 border border-amber/40 rounded text-sm hover:bg-amber/30">
+                        <button id="gpu-clear-filters" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm hover:bg-white/10 transition-colors">
                             Clear Filters
                         </button>
                     </div>
@@ -232,32 +169,32 @@
                     <div class="flex items-center gap-4">
                         <h4 class="text-xl font-semibold">Open Source Models Catalog</h4>
                         <!-- Toggle: Cards ↔ Table -->
-                        <button id="llm-catalog-view-toggle" aria-label="Toggle LLM catalog view" class="relative w-20 h-8 bg-navy/70 border border-soft-gray/20 rounded-full flex items-center px-1 justify-start hover:bg-navy/80 transition-colors">
+                        <button id="llm-catalog-view-toggle" aria-label="Toggle LLM catalog view" class="relative w-20 h-8 bg-white/5 border border-white/10 rounded-full flex items-center px-1 justify-start hover:bg-white/10 transition-colors">
                             <span class="text-[10px] absolute left-2 text-soft-gray/60 select-none">Cards</span>
                             <span class="text-[10px] absolute right-2 text-soft-gray/60 select-none">Table</span>
-                            <div id="llm-catalog-view-knob" class="w-8 h-6 bg-electric rounded-full transition-all"></div>
+                            <div id="llm-catalog-view-knob" class="w-8 h-6 bg-accent rounded-full transition-all"></div>
                         </button>
                     </div>
                     <!-- LLM Filters -->
                     <div class="flex flex-wrap gap-3">
-                        <select id="llm-size-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                        <select id="llm-size-filter" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
                             <option value="">All Sizes</option>
                             <option value="small">Small (< 10B)</option>
                             <option value="medium">Medium (10B-50B)</option>
                             <option value="large">Large (50B+)</option>
                         </select>
-                        <select id="llm-type-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                        <select id="llm-type-filter" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
                             <option value="">All Types</option>
                             <option value="dense">Dense</option>
                             <option value="moe">MoE</option>
                         </select>
-                        <select id="llm-license-filter" class="px-3 py-1 bg-navy/70 border border-soft-gray/20 rounded text-sm">
+                        <select id="llm-license-filter" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
                             <option value="">All Licenses</option>
                             <option value="apache">Apache 2.0</option>
                             <option value="mit">MIT</option>
                             <option value="custom">Custom</option>
                         </select>
-                        <button id="llm-clear-filters" class="px-3 py-1 bg-amber/20 border border-amber/40 rounded text-sm hover:bg-amber/30">
+                        <button id="llm-clear-filters" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm hover:bg-white/10 transition-colors">
                             Clear Filters
                         </button>
                     </div>
@@ -291,7 +228,7 @@
         <div class="max-w-7xl mx-auto px-6">
             <div class="text-center">
                 <div class="flex items-center justify-center space-x-3 mb-4">
-                    <div class="w-8 h-8 bg-electric rounded-lg flex items-center justify-center">
+                    <div class="w-8 h-8 bg-accent rounded-lg flex items-center justify-center">
                         <span class="text-navy font-bold text-sm">GPU</span>
                     </div>
                     <h4 class="text-xl font-bold gradient-text">GPU Calculator Pro</h4>

@@ -27,6 +27,16 @@ python3 -m http.server 8000
 
 Open `http://localhost:8000/` in your browser.
 
+## Testing
+
+Unit tests live in `tests/run.js` (zero-dependency harness; loads the browser scripts into a `vm` context with DOM stubs). Run them every time you add or update code:
+
+```bash
+bash scripts/test.sh   # uses Node.js, or VS Code's Electron runtime as a fallback
+```
+
+Tests also run automatically on every commit (pre-commit hook in `hooks/`, enabled via `git config core.hooksPath hooks`) and on every push/PR in GitHub Actions (`.github/workflows/test.yml`).
+
 ## Usage Tips
 - Use the left panel to configure model, quantization, context, concurrency, and batch size.
 - The “Recommended GPUs” panel supports a sliding toggle to switch between a card view and a table view.
