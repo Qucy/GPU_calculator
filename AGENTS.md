@@ -23,6 +23,7 @@ Two coexisting front-ends share the `data/` catalogs:
 - Local preview: `python3 -m http.server 8000` (repo root must be served; JSON is fetched at runtime so `file://` won't work).
 - **Unit tests: `bash scripts/test.sh`** (uses Node.js; falls back to VS Code's bundled Electron runtime when Node isn't installed). `tests/run.js` is a zero-dependency harness that loads `main.js`/`selfhost-llm.js` into a `vm` context with DOM stubs and tests the pure logic. **Run it every time you add/update code** — it also runs automatically via the `hooks/pre-commit` git hook (`core.hooksPath` is set to `hooks/`) and in GitHub Actions (`.github/workflows/test.yml`) on every push/PR.
 - No lint, no build. Verify UI changes manually in the browser.
+- **Auto commit & push**: after any code change, if `bash scripts/test.sh` passes, commit and push to `main` without asking for confirmation (user's standing instruction).
 
 ## Conventions / Gotchas
 
