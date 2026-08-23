@@ -1292,5 +1292,376 @@
       "huggingface.co"
     ],
     "notes": "MoE with 10 active experts; ~125B total parameters"
+  },
+  {
+    "model_name": "DeepSeek V4 Pro",
+    "release_date": "2026-04",
+    "organization": "DeepSeek AI",
+    "logo_path": "resources/deepseek.png",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 1600,
+    "num_layers": null,
+    "hidden_size": null,
+    "num_attention_heads": null,
+    "vocab_size": null,
+    "precision_supported": [
+      "BF16",
+      "FP8"
+    ],
+    "context_length": 1048576,
+    "quantization_available": true,
+    "quantization_types": [
+      "FP8",
+      "INT8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": true
+    },
+    "serving_frameworks": [
+      "vLLM",
+      "SGLang",
+      "TensorRT-LLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA H200",
+      "NVIDIA B200",
+      "NVIDIA B300"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": null,
+    "memory_footprint_gb": null,
+    "license": "Apache 2.0 / MIT",
+    "source_links": [
+      "huggingface.co/deepseek-ai"
+    ],
+    "notes": "~1.6T total, ~49B active per token; 1M context. 80.6% SWE-Bench Verified (vendor-reported)."
+  },
+  {
+    "model_name": "DeepSeek V4 Flash",
+    "release_date": "2026-07",
+    "organization": "DeepSeek AI",
+    "logo_path": "resources/deepseek.png",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 284,
+    "num_layers": null,
+    "hidden_size": null,
+    "num_attention_heads": null,
+    "vocab_size": null,
+    "precision_supported": [
+      "BF16",
+      "FP8"
+    ],
+    "context_length": 1048576,
+    "quantization_available": true,
+    "quantization_types": [
+      "FP8",
+      "INT8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": true
+    },
+    "serving_frameworks": [
+      "vLLM",
+      "SGLang",
+      "TensorRT-LLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA H200",
+      "NVIDIA B200",
+      "AMD Instinct MI355X"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": null,
+    "memory_footprint_gb": null,
+    "license": "Apache 2.0 / MIT",
+    "source_links": [
+      "huggingface.co/deepseek-ai"
+    ],
+    "notes": "0731 refresh: ~284B total, ~13B active per token; 1M context; strong agentic/tool-use focus."
+  },
+  {
+    "model_name": "GLM-5.2",
+    "release_date": "2026-06",
+    "organization": "Z.ai (Zhipu AI)",
+    "logo_path": "resources/zhipu.png",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 744,
+    "num_layers": null,
+    "hidden_size": null,
+    "num_attention_heads": null,
+    "vocab_size": null,
+    "precision_supported": [
+      "BF16"
+    ],
+    "context_length": 1048576,
+    "quantization_available": true,
+    "quantization_types": [
+      "FP8",
+      "INT8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": true
+    },
+    "serving_frameworks": [
+      "vLLM",
+      "SGLang"
+    ],
+    "recommended_gpu": [
+      "NVIDIA H200",
+      "NVIDIA B200",
+      "NVIDIA B300"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": null,
+    "memory_footprint_gb": null,
+    "license": "MIT",
+    "source_links": [
+      "huggingface.co/zai-org"
+    ],
+    "notes": "~744B total, ~40B active per token; 1M context; 81.0 Terminal-Bench 2.1 (vendor-reported)."
+  },
+  {
+    "model_name": "Kimi K3",
+    "release_date": "2026-07",
+    "organization": "Moonshot AI",
+    "logo_path": "resources/kimi.png",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 2800,
+    "num_layers": null,
+    "hidden_size": null,
+    "num_attention_heads": null,
+    "vocab_size": null,
+    "precision_supported": [
+      "BF16",
+      "FP8"
+    ],
+    "context_length": 1048576,
+    "quantization_available": true,
+    "quantization_types": [
+      "FP8",
+      "INT8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": 896,
+      "active_experts": 16,
+      "expert_parallelism": true
+    },
+    "serving_frameworks": [
+      "vLLM",
+      "SGLang",
+      "TensorRT-LLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA B200",
+      "NVIDIA B300",
+      "AMD Instinct MI355X"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": null,
+    "memory_footprint_gb": null,
+    "license": "Modified MIT License",
+    "source_links": [
+      "huggingface.co/moonshotai"
+    ],
+    "notes": "2.8T total, 16 of 896 experts active (~50B active); 1M context; native vision. 93.5% GPQA Diamond (Onyx leaderboard)."
+  },
+  {
+    "model_name": "MiniMax M3",
+    "release_date": "2026-06",
+    "organization": "MiniMax",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 428,
+    "num_layers": null,
+    "hidden_size": null,
+    "num_attention_heads": null,
+    "vocab_size": null,
+    "precision_supported": [
+      "BF16"
+    ],
+    "context_length": 1048576,
+    "quantization_available": true,
+    "quantization_types": [
+      "FP8",
+      "INT8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": true
+    },
+    "serving_frameworks": [
+      "vLLM",
+      "SGLang"
+    ],
+    "recommended_gpu": [
+      "NVIDIA H200",
+      "NVIDIA B200"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": null,
+    "memory_footprint_gb": null,
+    "license": "Apache 2.0",
+    "source_links": [
+      "huggingface.co/MiniMaxAI"
+    ],
+    "notes": "Native multimodal MoE; ~428B total, ~23B active per token; 1M context."
+  },
+  {
+    "model_name": "Qwen3-VL-235B-A22B",
+    "release_date": "2025-09",
+    "organization": "Alibaba Cloud / Qwen team",
+    "logo_path": "resources/alibaba.png",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 235,
+    "num_layers": null,
+    "hidden_size": null,
+    "num_attention_heads": null,
+    "vocab_size": null,
+    "precision_supported": [
+      "BF16"
+    ],
+    "context_length": 262144,
+    "quantization_available": true,
+    "quantization_types": [
+      "FP8",
+      "INT8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": true
+    },
+    "serving_frameworks": [
+      "vLLM",
+      "SGLang"
+    ],
+    "recommended_gpu": [
+      "NVIDIA H100",
+      "NVIDIA H200",
+      "NVIDIA B200"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": null,
+    "memory_footprint_gb": null,
+    "license": "Apache 2.0",
+    "source_links": [
+      "huggingface.co/Qwen"
+    ],
+    "notes": "Multimodal (vision+language) MoE; 235B total, 22B active; 256K native context, expandable to 1M."
+  },
+  {
+    "model_name": "Gemma 4 31B",
+    "release_date": "2026-04",
+    "organization": "Google",
+    "architecture_type": "Dense",
+    "parameter_count_billion": 31,
+    "num_layers": null,
+    "hidden_size": null,
+    "num_attention_heads": null,
+    "vocab_size": null,
+    "precision_supported": [
+      "BF16"
+    ],
+    "context_length": 262144,
+    "quantization_available": true,
+    "quantization_types": [
+      "INT8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": false,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": null
+    },
+    "serving_frameworks": [
+      "vLLM",
+      "llama.cpp",
+      "Ollama"
+    ],
+    "recommended_gpu": [
+      "NVIDIA L40S",
+      "NVIDIA RTX PRO 6000 Blackwell",
+      "NVIDIA A100"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": null,
+    "memory_footprint_gb": null,
+    "license": "Apache 2.0",
+    "source_links": [
+      "huggingface.co/google"
+    ],
+    "notes": "Dense 31B successor to Gemma 3 27B; 262K context; 85.2% MMLU (Onyx leaderboard)."
+  },
+  {
+    "model_name": "Mistral Large 3",
+    "release_date": "2025-12",
+    "organization": "Mistral AI",
+    "logo_path": "resources/mistral.png",
+    "architecture_type": "MoE",
+    "parameter_count_billion": 675,
+    "num_layers": null,
+    "hidden_size": null,
+    "num_attention_heads": null,
+    "vocab_size": null,
+    "precision_supported": [
+      "BF16"
+    ],
+    "context_length": 262144,
+    "quantization_available": true,
+    "quantization_types": [
+      "FP8",
+      "INT8",
+      "4-bit"
+    ],
+    "moe": {
+      "enabled": true,
+      "num_experts": null,
+      "active_experts": null,
+      "expert_parallelism": true
+    },
+    "serving_frameworks": [
+      "vLLM",
+      "TensorRT-LLM"
+    ],
+    "recommended_gpu": [
+      "NVIDIA H200",
+      "NVIDIA B200",
+      "NVIDIA B300"
+    ],
+    "throughput_tokens_per_sec_per_gpu": null,
+    "batch_size_tested": null,
+    "sequence_length_tested": null,
+    "memory_footprint_gb": null,
+    "license": "Apache 2.0",
+    "source_links": [
+      "huggingface.co/mistralai"
+    ],
+    "notes": "675B MoE, ~41B active per token; successor to Mistral Large 2 (123B)."
   }
 ]

@@ -437,6 +437,7 @@ async function augmentCalculatorGPUOptionsFromCatalog() {
         if (/^rtx\s*50/i.test(name)) return 'NVIDIA RTX 50 Series';
         if (/^rtx\s*40/i.test(name)) return 'NVIDIA RTX 40 Series';
         if (/^rtx\s*30/i.test(name)) return 'NVIDIA RTX 30 Series';
+        if (/^instinct/i.test(name)) return 'AMD Instinct (Datacenter)';
         if (vendor === 'nvidia') return 'NVIDIA Professional';
         if (vendor === 'amd') return 'AMD Radeon';
         return gpu.vendor ? gpu.vendor : 'Other Accelerators';
@@ -900,7 +901,11 @@ function readScenarioContext() {
     const modelLabel = (selectedModelOption.textContent || selectedModelOption.innerText || '').trim();
     const gpuLabelOption = gpuTypeEl.options[gpuTypeEl.selectedIndex];
     const gpuLabel = (gpuLabelOption && (gpuLabelOption.textContent || gpuLabelOption.innerText) || '').trim();
-    const quantLabelMap = { '1.0': 'FP16/BF16', '0.5': 'INT8/FP8', '0.25': 'INT4/MXFP4', '0.125': 'INT2' };
+    const quantLabelMap = {
+        '2': 'FP32', '1': 'FP16/BF16', '0.53125': 'Q8_0', '0.5': 'INT8/FP8',
+        '0.41015625': 'Q6_K', '0.34375': 'Q5_K_M', '0.3': 'Q4_K_M',
+        '0.25': 'INT4/FP4/MXFP4', '0.21484375': 'Q3_K_M', '0.16015625': 'Q2_K', '0.125': 'INT2'
+    };
     const quantLabel = quantLabelMap[String(quantization)] || `${quantization}x`;
 
     // Compose GPU counts and contexts to explore (min context 8K)

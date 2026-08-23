@@ -74,7 +74,7 @@ Implementation details:
 - `selfhost-llm.js` → `augmentCalculatorGPUOptionsFromCatalog()`
   - Fetches `data/GPUs.json` and appends any GPUs not already present.
   - Dedupes using both the option `value` slug and word-boundary matching to avoid collisions (e.g., `H20` vs `H200`).
-  - Groups appended options under existing optgroups based on vendor and name (e.g., `NVIDIA RTX 40 Series`, `NVIDIA Professional`, `AMD Radeon`).
+  - Groups appended options under existing optgroups based on vendor and name (e.g., `NVIDIA RTX 40 Series`, `NVIDIA Professional`, `AMD Instinct (Datacenter)`, `AMD Radeon`).
   - Sets `data-vram` from `memory_gb` and `data-bandwidth` from `memory_bandwidth_tbps` (converted to GB/s).
   - Sets `data-nvlink` from `nvlink_bandwidth_gbs` and `data-pcie` from `pcie_generation`; these drive the multi-GPU interconnect (PCIe/NVLink) communication penalty in `calculatePerformance()`.
 - `window.onload` awaits the augmentation so merged options are available before initialization and URL preselection.

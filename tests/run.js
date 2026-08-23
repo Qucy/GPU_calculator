@@ -174,6 +174,13 @@ test('calculatePerformance: quantization kernel efficiency, context impact, mult
     // Kernel efficiency (<1): the footprint shrink is already credited via modelMemory
     assertEqual(S.calculatePerformance(14, 0.25, 4096, 'x', 1).quantKernelEff, 0.6);
     assertEqual(S.calculatePerformance(14, 0.5, 4096, 'x', 1).quantKernelEff, 0.9);
+    // New tiers: Q2_K/Q3_K_M (<=0.25) -> 0.6, Q4_K_M (0.3) -> 0.65,
+    // Q5_K_M/Q6_K (<=0.5) -> 0.9, Q8_0 (<=0.75) -> 0.95, FP32 (2.0) -> 1.0
+    assertEqual(S.calculatePerformance(14, 0.16015625, 4096, 'x', 1).quantKernelEff, 0.6);
+    assertEqual(S.calculatePerformance(14, 0.3, 4096, 'x', 1).quantKernelEff, 0.65);
+    assertEqual(S.calculatePerformance(14, 0.34375, 4096, 'x', 1).quantKernelEff, 0.9);
+    assertEqual(S.calculatePerformance(14, 0.53125, 4096, 'x', 1).quantKernelEff, 0.95);
+    assertEqual(S.calculatePerformance(14, 2.0, 4096, 'x', 1).quantKernelEff, 1.0);
     assertEqual(S.calculatePerformance(14, 1, 131072, 'x', 1).contextImpact, 0.3);
     const multi = S.calculatePerformance(14, 1, 4096, 'x', 4);
     assertEqual(multi.bandwidth, 4032);
@@ -370,15 +377,30 @@ const GPUCalculator = main.sandbox.__GPUCalculator;
 GPUCalculator.prototype.init = function () {};
 const app = new GPUCalculator();
 
+// --- quantizationFactors ---
+
+test('quantizationFactors: fp32=4, fp16/bf16=2, fp8/int8=1, fp4/int4=0.5, int2=0.25', () => {
+    assertEqual(app.quantizationFactors['fp32'], 4);
+    assertEqual(app.quantizationFactors['fp16'], 2);
+    assertEqual(app.quantizationFactors['bf16'], 2);
+    assertEqual(app.quantizationFactors['fp8'], 1);
+    assertEqual(app.quantizationFactors['int8'], 1);
+    assertEqual(app.quantizationFactors['fp4'], 0.5);
+    assertEqual(app.quantizationFactors['int4'], 0.5);
+    assertEqual(app.quantizationFactors['int2'], 0.25);
+});
+
 // --- bytesPerValueForPrecision ---
 
-test('bytesPerValueForPrecision: fp32=4, fp16/bf16=2, fp8/int8/int4=1', () => {
+test('bytesPerValueForPrecision: fp32=4, fp16/bf16=2, fp8/int8=1, int4/fp4=0.5, int2=0.25', () => {
     assertEqual(app.bytesPerValueForPrecision('fp32'), 4);
     assertEqual(app.bytesPerValueForPrecision('fp16'), 2);
     assertEqual(app.bytesPerValueForPrecision('bf16'), 2);
     assertEqual(app.bytesPerValueForPrecision('fp8'), 1);
     assertEqual(app.bytesPerValueForPrecision('int8'), 1);
-    assertEqual(app.bytesPerValueForPrecision('int4'), 1);
+    assertEqual(app.bytesPerValueForPrecision('int4'), 0.5);
+    assertEqual(app.bytesPerValueForPrecision('fp4'), 0.5);
+    assertEqual(app.bytesPerValueForPrecision('int2'), 0.25);
 });
 
 // --- getMemoryGB (defensive parsing of "40 / 80" style values) ---
@@ -403,10 +425,12 @@ test('getBandwidthGBps: memory_bandwidth_tbps, legacy bandwidth_tbps, raw GB/s',
 
 // --- efficiencyFactorForPrecision ---
 
-test('efficiencyFactorForPrecision: int8/fp8=0.85, int4=0.9, default=0.7', () => {
+test('efficiencyFactorForPrecision: int8/fp8=0.85, int4/fp4/int2=0.9, default=0.7', () => {
     assertEqual(app.efficiencyFactorForPrecision('int8'), 0.85);
     assertEqual(app.efficiencyFactorForPrecision('fp8'), 0.85);
     assertEqual(app.efficiencyFactorForPrecision('int4'), 0.9);
+    assertEqual(app.efficiencyFactorForPrecision('fp4'), 0.9);
+    assertEqual(app.efficiencyFactorForPrecision('int2'), 0.9);
     assertEqual(app.efficiencyFactorForPrecision('fp16'), 0.7);
 });
 
@@ -465,6 +489,103 @@ test('resolveGPUByName: exact, substring, and miss', () => {
 test('formatNumber: thousands separators, decimals argument ignored (preserved)', () => {
     assertEqual(app.formatNumber(1234567), '1,234,567');
     assertEqual(app.formatNumber(0), '0');
+});
+
+// ---------------------------------------------------------------------------
+// Catalog data validation (data/GPUs.json, data/LLMs.json, calculator.html)
+// ---------------------------------------------------------------------------
+
+const gpuCatalog = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'GPUs.json'), 'utf8')).gpus;
+const llmCatalog = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'LLMs.json'), 'utf8'));
+const calculatorHtml = fs.readFileSync(path.join(__dirname, '..', 'calculator.html'), 'utf8');
+
+test('GPUs.json: unique names, required fields on every entry', () => {
+    const names = gpuCatalog.map(g => g.name);
+    assertEqual(new Set(names).size, names.length, 'duplicate GPU names');
+    for (const g of gpuCatalog) {
+        assert(g.vendor, `${g.name}: missing vendor`);
+        assert(g.memory_gb != null, `${g.name}: missing memory_gb`);
+        assert(g.memory_bandwidth_tbps != null, `${g.name}: missing memory_bandwidth_tbps (performance estimates stay hidden without it)`);
+    }
+});
+
+test('GPUs.json: 2025-2026 additions present with expected specs', () => {
+    const byName = Object.fromEntries(gpuCatalog.map(g => [g.name, g]));
+    const expected = [
+        ['NVIDIA B200', 192, 8.0, 1800],
+        ['NVIDIA B300', 288, 8.0, 1800],
+        ['NVIDIA RTX PRO 6000 Blackwell', 96, 1.792, null],
+        ['AMD Instinct MI300X', 192, 5.3, 896],
+        ['AMD Instinct MI325X', 256, 6.0, 896],
+        ['AMD Instinct MI355X', 288, 8.0, 896],
+        ['Intel Gaudi 3', 128, 3.67, null],
+    ];
+    for (const [name, mem, tbps, nvlink] of expected) {
+        const g = byName[name];
+        assert(g, `${name} missing from GPUs.json`);
+        assertEqual(Number(g.memory_gb), mem, `${name} memory_gb`);
+        assertClose(Number(g.memory_bandwidth_tbps), tbps, 1e-9, `${name} bandwidth`);
+        assertEqual(g.nvlink_bandwidth_gbs ?? null, nvlink, `${name} interconnect`);
+    }
+});
+
+test('LLMs.json: unique names, required fields on every entry', () => {
+    const names = llmCatalog.map(m => m.model_name);
+    assertEqual(new Set(names).size, names.length, 'duplicate model names');
+    for (const m of llmCatalog) {
+        assert(typeof m.parameter_count_billion === 'number' && m.parameter_count_billion > 0,
+            `${m.model_name}: bad parameter_count_billion`);
+        assert(typeof m.context_length === 'number' && m.context_length > 0,
+            `${m.model_name}: bad context_length`);
+        assert(m.moe && typeof m.moe.enabled === 'boolean', `${m.model_name}: missing moe block`);
+    }
+});
+
+test('LLMs.json: 2025-2026 additions present with expected sizes', () => {
+    const byName = Object.fromEntries(llmCatalog.map(m => [m.model_name, m]));
+    const expected = [
+        ['DeepSeek V4 Pro', 1600, true],
+        ['DeepSeek V4 Flash', 284, true],
+        ['GLM-5.2', 744, true],
+        ['Kimi K3', 2800, true],
+        ['MiniMax M3', 428, true],
+        ['Qwen3-VL-235B-A22B', 235, true],
+        ['Gemma 4 31B', 31, false],
+        ['Mistral Large 3', 675, true],
+    ];
+    for (const [name, paramsB, isMoE] of expected) {
+        const m = byName[name];
+        assert(m, `${name} missing from LLMs.json`);
+        assertEqual(m.parameter_count_billion, paramsB, `${name} params`);
+        assertEqual(m.moe.enabled, isMoE, `${name} moe.enabled`);
+    }
+    // Kimi K3: 16 of 896 experts active per token (Moonshot model card)
+    assertEqual(byName['Kimi K3'].moe.num_experts, 896);
+    assertEqual(byName['Kimi K3'].moe.active_experts, 16);
+});
+
+test('calculator.html dropdown: new models present, data-memory = 2x params (FP16 GB)', () => {
+    // [unique label fragment, total params B, active params B (null for dense)]
+    const cases = [
+        ['V4 Pro 1.6T', 1600, 49],
+        ['V4 Flash 284B', 284, 13],
+        ['GLM-5.2', 744, 40],
+        ['Kimi K3', 2800, 50],
+        ['MiniMax M3', 428, 23],
+        ['Qwen3-VL', 235, 22],
+        ['Large 3 675B', 675, 41],
+        ['Gemma 4 31B', 31, null],
+    ];
+    for (const [frag, totalB, activeB] of cases) {
+        const esc = frag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(`<option value="(\\d+(?:\\.\\d+)?)" data-memory="(\\d+(?:\\.\\d+)?)"[^>]*>[^<]*${esc}`);
+        const match = calculatorHtml.match(re);
+        assert(match, `dropdown option not found for ${JSON.stringify(frag)}`);
+        assertEqual(parseFloat(match[2]), totalB * 2, `${frag} data-memory should be ${totalB * 2}`);
+        if (activeB != null) {
+            assertEqual(parseFloat(match[1]), activeB, `${frag} value (active B) should be ${activeB}`);
+        }
+    }
 });
 
 // ---------------------------------------------------------------------------

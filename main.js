@@ -82,11 +82,17 @@ class GPUCalculator {
             'fp16': 2,
             'bf16': 2,
             'fp8': 1,
-            'int8': 1
+            'int8': 1,
+            'fp4': 0.5,
+            'int4': 0.5,
+            'int2': 0.25
         };
 
         this.gpus = [
+            // NOTE: gpus[0] is the reference GPU for calculatePerformance() — keep H200 first.
             { name: 'H200', vram: 141, bandwidth: 4800, price: 35000, cloudPrice: 6.50 },
+            { name: 'B300', vram: 288, bandwidth: 8000, price: 55000, cloudPrice: 9.00 },
+            { name: 'B200', vram: 192, bandwidth: 8000, price: 40000, cloudPrice: 8.00 },
             { name: 'H100', vram: 80, bandwidth: 3350, price: 30000, cloudPrice: 5.50 },
             { name: 'H20', vram: 96, bandwidth: 2000, price: 25000, cloudPrice: 4.50 },
             { name: 'A100', vram: 80, bandwidth: 2039, price: 15000, cloudPrice: 3.50 },
@@ -615,8 +621,8 @@ class GPUCalculator {
         const referenceGPU = this.gpus[0];
         const memoryBandwidth = referenceGPU.bandwidth; // GB/s
 
-        // Computation efficiency per docs
-        // KNOWN ISSUE (preserved): references 'int4' though quantizationFactors has no 'int4' key.
+        // Computation efficiency per docs (quantizationFactors now covers
+        // fp4/int4/int2, so 'int4' here is a reachable selection).
         const efficiencyFactor = this.currentConfig.quantization === 'int8' ? EFFICIENCY_INT8_FP8 :
             this.currentConfig.quantization === 'int4' ? EFFICIENCY_INT4 : EFFICIENCY_DEFAULT; // fp16/bf16 default to 0.7
 
@@ -1001,7 +1007,9 @@ class GPUCalculator {
         const p = (precision || '').toLowerCase();
         if (p === 'fp32') return 4;
         if (p === 'fp16' || p === 'bf16') return 2;
-        // fp8 / int8 / int4 treated as 1 byte per value
+        if (p === 'int4' || p === 'fp4') return 0.5;
+        if (p === 'int2') return 0.25;
+        // fp8 / int8 and unknown precisions default to 1 byte per value
         return 1;
     }
 
@@ -1082,7 +1090,7 @@ class GPUCalculator {
     efficiencyFactorForPrecision(precision) {
         const p = (precision || '').toLowerCase();
         if (p === 'int8' || p === 'fp8') return EFFICIENCY_INT8_FP8;
-        if (p === 'int4') return EFFICIENCY_INT4;
+        if (p === 'int4' || p === 'fp4' || p === 'int2') return EFFICIENCY_INT4;
         // fp16/bf16 default
         return EFFICIENCY_DEFAULT;
     }
