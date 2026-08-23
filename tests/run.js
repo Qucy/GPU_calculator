@@ -137,12 +137,17 @@ test('getGPUBandwidth: prefers selected option data-bandwidth over the map', () 
 
 // --- calculatePerformance ---
 
-function stubPerformanceDOM(modelParams = '7', gpuBandwidth = '1008') {
+// attrs: extra data-* attributes for the GPU option (e.g. data-nvlink/data-pcie);
+// modelLabel: textContent of the selected model option (drives arch heuristics).
+function stubPerformanceDOM(modelParams = '7', gpuBandwidth = '1008', attrs = {}, modelLabel = null) {
     self.byQuery['input[name="model-input-type"]:checked'] = makeEl({ value: 'preset' });
-    self.byId['model-preset'] = makeEl({ value: modelParams });
+    const modelOpt = makeEl({ textContent: modelLabel || `${modelParams}B` });
+    self.byId['model-preset'] = makeEl({ value: modelParams, selectedIndex: 0, options: [modelOpt] });
     self.byId['gpu-type'] = makeEl({
         selectedIndex: 0,
-        options: [makeEl({ getAttribute: (k) => (k === 'data-bandwidth' ? gpuBandwidth : null) })]
+        options: [makeEl({
+            getAttribute: (k) => (k === 'data-bandwidth' ? gpuBandwidth : (attrs[k] ?? null))
+        })]
     });
 }
 
@@ -164,13 +169,21 @@ test('calculatePerformance: efficiency tiers by model size', () => {
     assertEqual(S.calculatePerformance(14, 1, 4096, 'x', 1).efficiency, 0.3);
 });
 
-test('calculatePerformance: quantization boost, context impact, multi-GPU scaling', () => {
+test('calculatePerformance: quantization kernel efficiency, context impact, multi-GPU scaling', () => {
     stubPerformanceDOM('7', '1008');
-    assertEqual(S.calculatePerformance(14, 0.25, 4096, 'x', 1).quantBoost, 2.5);
+    // Kernel efficiency (<1): the footprint shrink is already credited via modelMemory
+    assertEqual(S.calculatePerformance(14, 0.25, 4096, 'x', 1).quantKernelEff, 0.6);
+    assertEqual(S.calculatePerformance(14, 0.5, 4096, 'x', 1).quantKernelEff, 0.9);
     assertEqual(S.calculatePerformance(14, 1, 131072, 'x', 1).contextImpact, 0.3);
     const multi = S.calculatePerformance(14, 1, 4096, 'x', 4);
     assertEqual(multi.bandwidth, 4032);
-    assertClose(multi.multiGpuScaling, 0.85 + 0.15 / 4, 1e-12);
+    // heuristic scaling (0.85 + 0.15/4) further reduced by the PCIe comm penalty
+    assert(multi.commFactor > 0 && multi.commFactor < 1, 'commFactor in (0,1)');
+    assertClose(multi.multiGpuScaling, (0.85 + 0.15 / 4) * multi.commFactor, 1e-12);
+    // single GPU: no comm penalty
+    const single = S.calculatePerformance(14, 1, 4096, 'x', 1);
+    assertEqual(single.commFactor, 1.0);
+    assertEqual(single.interconnect, null);
 });
 
 test('calculatePerformance: returns null when bandwidth is unavailable', () => {
@@ -178,6 +191,101 @@ test('calculatePerformance: returns null when bandwidth is unavailable', () => {
     delete self.byId['gpu-type']; // no data-bandwidth, unknown slug -> 0
     assertEqual(S.calculatePerformance(14, 1, 4096, 'no-such-gpu', 1), null);
 });
+
+// --- Interconnect (PCIe / NVLink) modeling ---
+
+test('getInterconnect: prefers NVLink, then PCIe generation, then conservative default', () => {
+    // NVLink wins over PCIe when both are present
+    self.byId['gpu-type'] = makeEl({
+        selectedIndex: 0,
+        options: [makeEl({ getAttribute: (k) => ({ 'data-nvlink': '600', 'data-pcie': '4.0' }[k] ?? null) })]
+    });
+    assertEqual(S.getInterconnect().kind, 'nvlink');
+    assertEqual(S.getInterconnect().bandwidth, 600);
+    // PCIe only
+    self.byId['gpu-type'] = makeEl({
+        selectedIndex: 0,
+        options: [makeEl({ getAttribute: (k) => (k === 'data-pcie' ? '5.0' : null) })]
+    });
+    assertEqual(S.getInterconnect().kind, 'pcie');
+    assertEqual(S.getInterconnect().bandwidth, 50);
+    // Unknown -> conservative PCIe 4.0 x16 default
+    self.byId['gpu-type'] = makeEl({ selectedIndex: 0, options: [makeEl()] });
+    assertEqual(S.getInterconnect().kind, 'pcie');
+    assertEqual(S.getInterconnect().bandwidth, 25);
+    delete self.byId['gpu-type'];
+});
+
+test('tensorParallelCommFactor: single GPU no penalty, NVLink beats PCIe', () => {
+    const arch = { num_layers: 80, hidden_size: 8192 }; // 70B-class
+    assertEqual(S.tensorParallelCommFactor(140, 8000, 1, arch, { bandwidth: 600, kind: 'nvlink' }), 1.0);
+    const nv = S.tensorParallelCommFactor(140, 8000, 4, arch, { bandwidth: 600, kind: 'nvlink' });
+    const pc = S.tensorParallelCommFactor(140, 8000, 4, arch, { bandwidth: 25, kind: 'pcie' });
+    assert(nv > pc, `NVLink (${nv}) should beat PCIe (${pc})`);
+    assert(nv > 0.9, `NVLink should be near-lossless for 70B-class (got ${nv})`);
+    // 2x RTX 4090 (PCIe 4.0, no NVLink) serving 70B INT4: measured all-reduce
+    // eats ~25-30% of decode throughput (GigaGPU benchmark, 2026)
+    const c4090 = S.tensorParallelCommFactor(35, 2016, 2, arch, { bandwidth: 25, kind: 'pcie' });
+    assert(c4090 > 0.65 && c4090 < 0.9,
+        `2x4090 PCIe comm factor ${c4090.toFixed(3)} should imply a ~10-35% penalty`);
+});
+
+test('calculatePerformance: NVLink multi-GPU beats PCIe multi-GPU by a realistic margin', () => {
+    stubPerformanceDOM('70', '2000', { 'data-nvlink': '600' }, 'Llama 3 70B');
+    const nvlinkPerf = S.calculatePerformance(140, 1, 4096, 'a100-80', 4);
+    stubPerformanceDOM('70', '2000', { 'data-pcie': '4.0' }, 'Llama 3 70B');
+    const pciePerf = S.calculatePerformance(140, 1, 4096, 'a100-80', 4);
+    assert(nvlinkPerf.tokensPerSecond > pciePerf.tokensPerSecond,
+        `NVLink ${nvlinkPerf.tokensPerSecond} should beat PCIe ${pciePerf.tokensPerSecond}`);
+    // Seesaw (arXiv 2503.06433): 8x A100 PCIe reaches ~60% of SXM+NVLink for
+    // 70B-class models (batched, x8 links); batch=1 over x16 should land higher.
+    const ratio = pciePerf.tokensPerSecond / nvlinkPerf.tokensPerSecond;
+    assert(ratio > 0.5 && ratio < 0.95, `PCIe/NVLink ratio ${ratio.toFixed(2)} should be in (0.5, 0.95)`);
+});
+
+// --- Real-world benchmark validation ---------------------------------------
+// Published batch=1 decode measurements vs. this calculator's estimate.
+// The model is a bandwidth-based heuristic; each case asserts the estimate
+// lands within a documented tolerance factor of the observation.
+//
+// Sources:
+//   [tinychat] MIT HAN Lab AWQ / TinyChat, batch=1 per-token decode latency,
+//              https://github.com/mit-han-lab/llm-awq/blob/main/tinychat/README.md
+//   [trtllm]   NVIDIA TensorRT-LLM blog, H100 vs A100 (Nov 2023, BS=1),
+//              https://nvidia.github.io/TensorRT-LLM/blogs/H100vsA100.html
+//   [gigagpu]  GigaGPU vLLM benchmarks (batch=1 sustained),
+//              https://gigagpu.com/rtx-4090-24gb-llama-3-8b-benchmark/
+//   [oci]      Oracle OCI Llama-3-70B benchmark, ~30.5 tok/s per request at
+//              concurrency=1 (hardware undisclosed — order-of-magnitude check),
+//              https://docs.oracle.com/en-us/iaas/Content/generative-ai/benchmark-meta-llama-3-70b-instruct.htm
+
+const BENCHMARKS = [
+    { name: 'Llama-3-8B FP16 @ A100 80GB [tinychat]', params: '8', label: 'Llama 3 8B', mem: 14, quant: 1, bw: '2000', gpus: 1, observed: 81, tol: [0.5, 2.0] },
+    { name: 'Llama-2-7B FP16 @ A100 80GB [tinychat]', params: '7', label: 'Llama 2 7B', mem: 14, quant: 1, bw: '2000', gpus: 1, observed: 93, tol: [0.5, 2.0] },
+    { name: 'Llama-3-8B FP16 @ RTX 4090 [tinychat]', params: '8', label: 'Llama 3 8B', mem: 14, quant: 1, bw: '1008', gpus: 1, observed: 59, tol: [0.5, 2.0] },
+    { name: 'Llama-2-7B FP16 @ RTX 4090 [tinychat]', params: '7', label: 'Llama 2 7B', mem: 14, quant: 1, bw: '1008', gpus: 1, observed: 65, tol: [0.5, 2.0] },
+    { name: 'GPT-J 6B FP16 @ A100 BS=1 [trtllm]', params: '6', label: 'GPT-J 6B', mem: 12, quant: 1, bw: '2000', gpus: 1, observed: 111, tol: [0.5, 2.0] },
+    { name: 'Llama-3-8B INT4-AWQ @ A100 [tinychat]', params: '8', label: 'Llama 3 8B', mem: 14 * 0.25, quant: 0.25, bw: '2000', gpus: 1, observed: 159, tol: [0.5, 2.0] },
+    // INT4 on consumer cards runs compute-bound at ~3.5GB footprint; the
+    // bandwidth model underestimates there -> wider tolerance.
+    { name: 'Llama-3-8B INT4-AWQ @ RTX 4090 [tinychat]', params: '8', label: 'Llama 3 8B', mem: 14 * 0.25, quant: 0.25, bw: '1008', gpus: 1, observed: 157, tol: [0.4, 2.5] },
+    { name: 'Llama-2-7B INT4-AWQ @ RTX 4090 [tinychat]', params: '7', label: 'Llama 2 7B', mem: 14 * 0.25, quant: 0.25, bw: '1008', gpus: 1, observed: 189, tol: [0.4, 2.5] },
+    { name: 'Llama-2-13B INT4-AWQ @ RTX 4090 [tinychat]', params: '13', label: 'Llama 2 13B', mem: 26 * 0.25, quant: 0.25, bw: '1008', gpus: 1, observed: 109, tol: [0.33, 3.0] },
+    { name: 'Llama-3.1-8B FP8 @ H100 batch=1 [gigagpu]', params: '8', label: 'Llama 3.1 8B', mem: 14 * 0.5, quant: 0.5, bw: '3350', gpus: 1, observed: 330, tol: [0.4, 2.5] },
+    // Multi-GPU absolute check (OCI hides its hardware; sanity band only)
+    { name: 'Llama-3-70B FP16 @ 4x A100 80GB NVLink vs OCI ~30 tok/s', params: '70', label: 'Llama 3 70B', mem: 140, quant: 1, bw: '2000', gpus: 4, attrs: { 'data-nvlink': '600' }, observed: 30, tol: [0.3, 3.0] },
+];
+
+for (const b of BENCHMARKS) {
+    test(`benchmark: ${b.name} ~= ${b.observed} tok/s`, () => {
+        stubPerformanceDOM(b.params, b.bw, b.attrs || {}, b.label);
+        const perf = S.calculatePerformance(b.mem, b.quant, 4096, 'bench-gpu', b.gpus);
+        const ratio = perf.tokensPerSecond / b.observed;
+        assert(ratio >= b.tol[0] && ratio <= b.tol[1],
+            `estimate ${perf.tokensPerSecond.toFixed(1)} tok/s vs observed ${b.observed} ` +
+            `(ratio ${ratio.toFixed(2)}, allowed ${b.tol[0]}-${b.tol[1]})`);
+    });
+}
 
 // --- Model name normalization / LLM catalog matching ---
 

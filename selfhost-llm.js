@@ -18,11 +18,14 @@ const EFFICIENCY_MEDIUM_MODEL = 0.7;   // <= 30B params
 const EFFICIENCY_LARGE_MODEL = 0.5;    // <= 70B params
 const EFFICIENCY_XLARGE_MODEL = 0.3;   // > 70B params
 
-// Quantization speed boost
-const QUANT_BOOST_MAX = 2.5;   // quantization <= 0.25 (INT4/MXFP4)
-const QUANT_BOOST_HIGH = 2.2;  // quantization <= 0.30
-const QUANT_BOOST_MED = 1.8;   // quantization <= 0.50 (INT8/FP8)
-const QUANT_BOOST_LOW = 1.3;   // quantization <= 0.75
+// Quantization kernel efficiency (fraction of the bandwidth win actually
+// realized; the footprint reduction is credited separately via model size).
+// Calibrated on TinyChat/AWQ batch=1 data (MIT HAN Lab, 2024): INT4 nets
+// ~2-2.9x vs FP16, INT8 ~1.5-2x — not the naive 4x/2x bandwidth ratios.
+const QUANT_KERNEL_EFF_INT4 = 0.6;   // quantization <= 0.25 (INT4/MXFP4) -> ~2.4x FP16
+const QUANT_KERNEL_EFF_5BIT = 0.65;  // quantization <= 0.30
+const QUANT_KERNEL_EFF_INT8 = 0.9;   // quantization <= 0.50 (INT8/FP8) -> ~1.8x FP16
+const QUANT_KERNEL_EFF_12BIT = 0.95; // quantization <= 0.75
 
 // Context length thresholds (tokens) and their speed impact
 const CONTEXT_THRESHOLD_MEDIUM = 8192;    // 8K
@@ -35,6 +38,23 @@ const CONTEXT_IMPACT_XL = 0.3;       // >= 128K
 // Multi-GPU scaling (not perfect linear scaling): base + spread / gpuCount
 const MULTI_GPU_SCALING_BASE = 0.85;
 const MULTI_GPU_SCALING_SPREAD = 0.15;
+
+// --- Interconnect (multi-GPU tensor-parallel communication) ---
+// Effective per-GPU interconnect bandwidth (GB/s) for tensor-parallel
+// all-reduce traffic. PCIe: x16 at ~80% of nominal throughput.
+const PCIE_BANDWIDTH_GBPS = { '3.0': 13, '4.0': 25, '5.0': 50, '6.0': 100 };
+// Conservative fallback when the GPU's interconnect is unknown (PCIe 4.0 x16)
+const DEFAULT_INTERCONNECT_GBPS = PCIE_BANDWIDTH_GBPS['4.0'];
+// Tensor-parallel decode does 2 all-reduces per layer (attention + MLP outputs),
+// each moving a hidden-size fp16/bf16 activation vector per token.
+const TP_ALLREDUCES_PER_LAYER = 2;
+const TP_ACTIVATION_BYTES = 2;
+// Per-all-reduce latency (microseconds): dominates for the small per-token
+// messages, especially over PCIe. PCIe value includes ring/protocol overhead;
+// calibrated so 2x RTX 4090 (PCIe 4.0) on 70B INT4 shows ~22% comm penalty —
+// consistent with the measured 25-30% (GigaGPU) and 8xA100 PCIe reaching
+// ~60-70% of NVLink throughput (Seesaw, arXiv 2503.06433).
+const TP_ALLREDUCE_LATENCY_US = { pcie: 30, nvlink: 3 };
 
 const PERF_CONSERVATIVE_FACTOR = 0.6;  // conservative estimate for datacenter GPUs
 
@@ -245,6 +265,45 @@ function getGPUBandwidth(gpuModel) {
 // Performance math
 // ============================================================================
 
+// Resolve the effective interconnect for the currently selected GPU option.
+// Prefers NVLink (data-nvlink, GB/s) over PCIe (data-pcie, generation string).
+// Unknown interconnect falls back to PCIe 4.0 x16 (worst common case).
+function getInterconnect() {
+    const select = el('gpu-type');
+    const opt = (select && select.selectedIndex >= 0) ? select.options[select.selectedIndex] : null;
+    const nvlink = opt ? parseFloat(opt.getAttribute('data-nvlink')) : NaN;
+    if (nvlink > 0) return { bandwidth: nvlink, kind: 'nvlink' };
+    const pcieGen = opt ? opt.getAttribute('data-pcie') : null;
+    const pcieBw = PCIE_BANDWIDTH_GBPS[String(pcieGen)];
+    if (pcieBw) return { bandwidth: pcieBw, kind: 'pcie' };
+    return { bandwidth: DEFAULT_INTERCONNECT_GBPS, kind: 'pcie' };
+}
+
+// Resolve model architecture (layers, hidden size) for TP communication sizing:
+// catalog match first, then the parameter-count heuristic.
+function resolveModelArchitecture(modelParams) {
+    const modelSelect = el('model-preset');
+    const opt = (modelSelect && modelSelect.selectedIndex >= 0) ? modelSelect.options[modelSelect.selectedIndex] : null;
+    const catalog = opt ? findLLMConfigFromSelectedOption(opt) : null;
+    if (catalog && catalog.num_layers && catalog.hidden_size) {
+        return { num_layers: catalog.num_layers, hidden_size: catalog.hidden_size };
+    }
+    const label = (opt && opt.textContent) ? opt.textContent : `${modelParams}B`;
+    return heuristicArchitecture({ textContent: label });
+}
+
+// Multi-GPU communication overhead: tensor-parallel decode interleaves memory-
+// bound weight reads with per-layer all-reduces over the interconnect.
+// Returns a factor in (0, 1] (1 = no comm penalty).
+function tensorParallelCommFactor(modelMemory, totalBandwidthGBps, gpuCount, arch, interconnect) {
+    if (gpuCount <= 1) return 1.0;
+    const commBytesPerToken = TP_ALLREDUCES_PER_LAYER * arch.num_layers * arch.hidden_size * TP_ACTIVATION_BYTES;
+    const latencyS = (TP_ALLREDUCE_LATENCY_US[interconnect.kind] / 1e6) * TP_ALLREDUCES_PER_LAYER * arch.num_layers;
+    const tMem = modelMemory / totalBandwidthGBps;                                  // s/token, memory-bound part
+    const tComm = (commBytesPerToken / (1024 ** 3)) / interconnect.bandwidth + latencyS; // s/token, comm part
+    return tMem / (tMem + tComm);
+}
+
 // Calculate performance estimate
 function calculatePerformance(modelMemory, quantization, contextLength, gpuModel, gpuCount) {
     const bandwidth = getGPUBandwidth(gpuModel) * gpuCount;
@@ -272,16 +331,20 @@ function calculatePerformance(modelMemory, quantization, contextLength, gpuModel
         efficiency = EFFICIENCY_XLARGE_MODEL;
     }
 
-    // Quantization speed boost
-    let quantBoost = 1.0;
+    // Quantization kernel efficiency. The smaller footprint is already credited
+    // via modelMemory (e.g. INT4 = 1/4 the bytes of FP16); these factors model
+    // the dequant/compute overhead that eats part of that bandwidth win.
+    // Calibrated against TinyChat/AWQ batch=1 measurements (MIT HAN Lab):
+    // Llama-2-7B/Llama-3-8B INT4 run ~2-2.9x FP16 (not the naive 4x), INT8 ~1.5-2x.
+    let quantKernelEff = 1.0;
     if (quantization <= 0.25) {
-        quantBoost = QUANT_BOOST_MAX;
+        quantKernelEff = QUANT_KERNEL_EFF_INT4;
     } else if (quantization <= 0.3) {
-        quantBoost = QUANT_BOOST_HIGH;
+        quantKernelEff = QUANT_KERNEL_EFF_5BIT;
     } else if (quantization <= 0.5) {
-        quantBoost = QUANT_BOOST_MED;
+        quantKernelEff = QUANT_KERNEL_EFF_INT8;
     } else if (quantization <= 0.75) {
-        quantBoost = QUANT_BOOST_LOW;
+        quantKernelEff = QUANT_KERNEL_EFF_12BIT;
     }
 
     // Context length impact
@@ -294,15 +357,21 @@ function calculatePerformance(modelMemory, quantization, contextLength, gpuModel
         contextImpact = CONTEXT_IMPACT_MEDIUM;
     }
 
-    // Multi-GPU scaling (not perfect linear scaling)
+    // Multi-GPU scaling: fixed heuristic for imperfect sharding, times a
+    // communication factor derived from the GPU's interconnect (PCIe/NVLink).
     let multiGpuScaling = 1.0;
+    let commFactor = 1.0;
+    let interconnect = null;
     if (gpuCount > 1) {
-        multiGpuScaling = MULTI_GPU_SCALING_BASE + (MULTI_GPU_SCALING_SPREAD / gpuCount);
+        interconnect = getInterconnect();
+        commFactor = tensorParallelCommFactor(modelMemory, bandwidth, gpuCount,
+            resolveModelArchitecture(modelParams), interconnect);
+        multiGpuScaling = (MULTI_GPU_SCALING_BASE + (MULTI_GPU_SCALING_SPREAD / gpuCount)) * commFactor;
     }
 
     // Calculate tokens per second
-    // Formula: (bandwidth / model_memory_gb) * efficiency * quant_boost * context_impact * scaling
-    const baseSpeed = (bandwidth / modelMemory) * efficiency * quantBoost * contextImpact * multiGpuScaling;
+    // Formula: (bandwidth / model_memory_gb) * efficiency * quant_kernel_eff * context_impact * scaling
+    const baseSpeed = (bandwidth / modelMemory) * efficiency * quantKernelEff * contextImpact * multiGpuScaling;
 
     // Apply realistic scaling factor
     const tokensPerSecond = baseSpeed * PERF_CONSERVATIVE_FACTOR; // Conservative estimate for datacenter GPUs
@@ -311,9 +380,11 @@ function calculatePerformance(modelMemory, quantization, contextLength, gpuModel
         tokensPerSecond: tokensPerSecond,
         bandwidth: bandwidth,
         efficiency: efficiency,
-        quantBoost: quantBoost,
+        quantKernelEff: quantKernelEff,
         contextImpact: contextImpact,
-        multiGpuScaling: multiGpuScaling
+        multiGpuScaling: multiGpuScaling,
+        commFactor: commFactor,          // 1.0 = no communication penalty
+        interconnect: interconnect       // { bandwidth (GB/s), kind: 'pcie'|'nvlink' } or null (single GPU)
     };
 }
 
@@ -431,6 +502,12 @@ async function augmentCalculatorGPUOptionsFromCatalog() {
             if (tbps && tbps > 0) {
                 const gbps = Math.round(tbps * 1024);
                 opt.setAttribute('data-bandwidth', String(gbps));
+            }
+            // Attach interconnect info for multi-GPU communication modeling
+            const nvlink = Number(gpu.nvlink_bandwidth_gbs);
+            if (nvlink > 0) opt.setAttribute('data-nvlink', String(nvlink));
+            if (gpu.pcie_generation != null && gpu.pcie_generation !== '') {
+                opt.setAttribute('data-pcie', String(gpu.pcie_generation));
             }
             opt.textContent = `${base} (${memGB}GB VRAM)`;
             addOptionToGroup(groupLabel, opt);
@@ -644,11 +721,20 @@ function renderPerformanceMetrics(perf, tokensPerSecNum) {
 }
 
 // Update the performance tips/notes block
-function renderPerformanceNotes(inputs, contextLength, tokensPerSecNum) {
+function renderPerformanceNotes(inputs, contextLength, tokensPerSecNum, perf) {
     const notesDiv = el('performance-notes');
     if (!notesDiv) return;
 
     let notes = [];
+    // Multi-GPU interconnect note (below MoE note)
+    if (perf && inputs.gpuCount > 1 && perf.interconnect) {
+        const penalty = Math.round((1 - perf.commFactor) * 100);
+        const label = perf.interconnect.kind === 'nvlink'
+            ? `NVLink (~${perf.interconnect.bandwidth} GB/s)`
+            : `PCIe (~${perf.interconnect.bandwidth} GB/s)`;
+        notes.push(`• Multi-GPU over ${label}: ~${penalty}% of throughput lost to tensor-parallel communication` +
+            (perf.interconnect.kind === 'pcie' && penalty >= 15 ? ' — NVLink GPUs would reduce this penalty' : ''));
+    }
     // MoE mode note at the top
     if (state.moe.isSelected) {
         const hasActive = typeof state.moe.activeMemory === 'number' && !isNaN(state.moe.activeMemory);
@@ -717,7 +803,7 @@ function renderPerformance(inputs, modelMemory, contextLength, availableMemory) 
     performanceSection.style.display = 'block';
     const tokensPerSecNum = parseFloat(perf.tokensPerSecond.toFixed(2));
     renderPerformanceMetrics(perf, tokensPerSecNum);
-    renderPerformanceNotes(inputs, contextLength, tokensPerSecNum);
+    renderPerformanceNotes(inputs, contextLength, tokensPerSecNum, perf);
 }
 
 function calculate() {

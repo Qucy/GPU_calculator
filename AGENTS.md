@@ -27,7 +27,7 @@ Two coexisting front-ends share the `data/` catalogs:
 
 ## Conventions / Gotchas
 
-- **Dual data sources**: GPU/model data exists both hardcoded in JS (`main.js` `this.models`, `this.gpus`, `calculator.html` `<option>`s) and in `data/*.json`. When adding hardware/models, prefer editing the JSON; the merge logic dedupes by value slug and word-boundary name matching (watch `H20` vs `H200` collisions). `memory_bandwidth_tbps` (TB/s) is converted to GB/s for `data-bandwidth`; without bandwidth, performance estimates stay hidden.
+- **Dual data sources**: GPU/model data exists both hardcoded in JS (`main.js` `this.models`, `this.gpus`, `calculator.html` `<option>`s) and in `data/*.json`. When adding hardware/models, prefer editing the JSON; the merge logic dedupes by value slug and word-boundary name matching (watch `H20` vs `H200` collisions). `memory_bandwidth_tbps` (TB/s) is converted to GB/s for `data-bandwidth`; without bandwidth, performance estimates stay hidden. `nvlink_bandwidth_gbs`/`pcie_generation` become `data-nvlink`/`data-pcie` and drive the multi-GPU interconnect penalty in `calculatePerformance()` (NVLink preferred, unknown → PCIe 4.0 fallback).
 - **`memory_gb` may be a string** like `"40 / 80"` — parse defensively.
 - Both pages configure Tailwind inline via `tailwind.config` in a `<script>` block; custom palette: `navy`, `electric`, `amber`, `sage`, `charcoal` (+ `accent` #3b82f6 on index.html). `styles/selfhost-extras.css` exists but is not linked by any page.
 - Keep the site deployable as-is from repo root (GitHub Pages serves `.`); don't introduce build steps or move `index.html`.

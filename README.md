@@ -37,6 +37,8 @@ bash scripts/test.sh   # uses Node.js, or VS Code's Electron runtime as a fallba
 
 Tests also run automatically on every commit (pre-commit hook in `hooks/`, enabled via `git config core.hooksPath hooks`) and on every push/PR in GitHub Actions (`.github/workflows/test.yml`).
 
+The suite includes validation against published batch-1 decode benchmarks (TinyChat/AWQ, NVIDIA TensorRT-LLM, GigaGPU, Oracle OCI): each case asserts the calculator's estimate lands within a documented tolerance of the measured tokens/sec.
+
 ## Usage Tips
 - Use the left panel to configure model, quantization, context, concurrency, and batch size.
 - The “Recommended GPUs” panel supports a sliding toggle to switch between a card view and a table view.
@@ -74,6 +76,7 @@ Implementation details:
   - Dedupes using both the option `value` slug and word-boundary matching to avoid collisions (e.g., `H20` vs `H200`).
   - Groups appended options under existing optgroups based on vendor and name (e.g., `NVIDIA RTX 40 Series`, `NVIDIA Professional`, `AMD Radeon`).
   - Sets `data-vram` from `memory_gb` and `data-bandwidth` from `memory_bandwidth_tbps` (converted to GB/s).
+  - Sets `data-nvlink` from `nvlink_bandwidth_gbs` and `data-pcie` from `pcie_generation`; these drive the multi-GPU interconnect (PCIe/NVLink) communication penalty in `calculatePerformance()`.
 - `window.onload` awaits the augmentation so merged options are available before initialization and URL preselection.
 - `selfhost-llm.js` → `getGPUBandwidth(gpuModel)`
   - Reads `data-bandwidth` from the selected option first.
