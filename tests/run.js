@@ -467,6 +467,79 @@ test('sortValues: numeric, numeric-string, alpha, and null ordering', () => {
     assertEqual(app.sortValues(null, null), 0);
 });
 
+// --- catalog search filtering (GPU) ---
+
+test('applyGPUFilters: search query matches name/vendor/architecture, case-insensitive', () => {
+    app.gpuCatalogData = [
+        { name: 'H100', vendor: 'NVIDIA', architecture: 'Hopper' },
+        { name: 'MI300X', vendor: 'AMD', architecture: 'CDNA 3' },
+        { name: 'Gaudi 3', vendor: 'Intel', architecture: 'Gaudi' }
+    ];
+    app.gpuFilters = { vendor: '', architecture: '', memory: '' };
+
+    app.gpuSearchQuery = 'h100';
+    app.applyGPUFilters();
+    assertEqual(app.filteredGpuData.map(g => g.name).join(','), 'H100', 'name match');
+
+    app.gpuSearchQuery = 'amd';
+    app.applyGPUFilters();
+    assertEqual(app.filteredGpuData.map(g => g.name).join(','), 'MI300X', 'vendor match');
+
+    app.gpuSearchQuery = 'cdna';
+    app.applyGPUFilters();
+    assertEqual(app.filteredGpuData.map(g => g.name).join(','), 'MI300X', 'architecture match');
+
+    app.gpuSearchQuery = 'zzz-no-match';
+    app.applyGPUFilters();
+    assertEqual(app.filteredGpuData.length, 0, 'no match -> empty');
+
+    app.gpuSearchQuery = '';
+    app.applyGPUFilters();
+    assertEqual(app.filteredGpuData.length, 3, 'empty query -> all');
+});
+
+// --- catalog search filtering (LLM) ---
+
+test('applyLLMFilters: search query matches model name/organization, case-insensitive', () => {
+    app.llms = [
+        { model_name: 'Llama 3.1 70B', organization: 'Meta' },
+        { model_name: 'DeepSeek-V3', organization: 'DeepSeek' }
+    ];
+    app.llmFilters = { size: '', type: '', license: '' };
+
+    app.llmSearchQuery = 'deepseek';
+    app.applyLLMFilters();
+    assertEqual(app.filteredLlmData.map(m => m.model_name).join(','), 'DeepSeek-V3', 'name match');
+
+    app.llmSearchQuery = 'meta';
+    app.applyLLMFilters();
+    assertEqual(app.filteredLlmData.map(m => m.model_name).join(','), 'Llama 3.1 70B', 'organization match');
+
+    app.llmSearchQuery = 'zzz-no-match';
+    app.applyLLMFilters();
+    assertEqual(app.filteredLlmData.length, 0, 'no match -> empty');
+
+    app.llmSearchQuery = '';
+    app.applyLLMFilters();
+    assertEqual(app.filteredLlmData.length, 2, 'empty query -> all');
+});
+
+// --- card view sorting ---
+
+test('card view sort: GPUs by memory desc, LLMs by params desc', () => {
+    const gpus = app.sortGPUList(
+        [{ name: 'a', memory_gb: 24 }, { name: 'b', memory_gb: 80 }, { name: 'c', memory_gb: 48 }],
+        'memory_gb', 'desc'
+    );
+    assertEqual(gpus.map(g => g.name).join(','), 'b,c,a');
+
+    const llms = app.sortLLMList(
+        [{ model_name: 'x', parameter_count_billion: 7 }, { model_name: 'y', parameter_count_billion: 70 }],
+        'params_b', 'desc'
+    );
+    assertEqual(llms.map(m => m.model_name).join(','), 'y,x');
+});
+
 // --- chooseDefaultPrecisionForLLM ---
 
 test('chooseDefaultPrecisionForLLM: prefers fp16 > bf16 > fp32 > int8 > fp8', () => {

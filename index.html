@@ -128,6 +128,15 @@
                     </div>
                     <!-- GPU Filters -->
                     <div class="flex flex-wrap gap-3">
+                        <input id="gpu-search" type="search" placeholder="Search GPUs..." class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
+                        <select id="gpu-sort" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
+                            <option value="name:asc">Name (A–Z)</option>
+                            <option value="name:desc">Name (Z–A)</option>
+                            <option value="memory_gb:desc">Memory (High → Low)</option>
+                            <option value="memory_bandwidth_tbps:desc">Bandwidth (High → Low)</option>
+                            <option value="fp16_tflops:desc">FP16 TFLOPs (High → Low)</option>
+                            <option value="price_usd:asc">Price (Low → High)</option>
+                        </select>
                         <select id="gpu-vendor-filter" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
                             <option value="">All Vendors</option>
                         </select>
@@ -177,6 +186,15 @@
                     </div>
                     <!-- LLM Filters -->
                     <div class="flex flex-wrap gap-3">
+                        <input id="llm-search" type="search" placeholder="Search models..." class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
+                        <select id="llm-sort" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
+                            <option value="model_name:asc">Name (A–Z)</option>
+                            <option value="model_name:desc">Name (Z–A)</option>
+                            <option value="params_b:desc">Params (High → Low)</option>
+                            <option value="params_b:asc">Params (Low → High)</option>
+                            <option value="context_length:desc">Context (High → Low)</option>
+                            <option value="release_date:desc">Release (Newest)</option>
+                        </select>
                         <select id="llm-size-filter" class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-soft-gray">
                             <option value="">All Sizes</option>
                             <option value="small">Small (< 10B)</option>

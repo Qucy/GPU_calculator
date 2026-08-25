@@ -136,6 +136,10 @@ class GPUCalculator {
         this.gpuCatalogSort = { key: 'name', dir: 'asc' };
         this.llmCatalogSort = { key: 'model_name', dir: 'asc' };
 
+        // Catalog search queries
+        this.gpuSearchQuery = '';
+        this.llmSearchQuery = '';
+
         // Filter states
         this.gpuFilters = {
             vendor: '',
@@ -432,6 +436,22 @@ class GPUCalculator {
         const gpuArchFilter = this.el('gpu-architecture-filter');
         const gpuMemoryFilter = this.el('gpu-memory-filter');
         const gpuClearFilters = this.el('gpu-clear-filters');
+        const gpuSearch = this.el('gpu-search');
+        const gpuSort = this.el('gpu-sort');
+
+        if (gpuSearch) {
+            gpuSearch.addEventListener('input', (e) => {
+                this.gpuSearchQuery = e.target.value.trim();
+                this.applyGPUFilters();
+            });
+        }
+        if (gpuSort) {
+            gpuSort.addEventListener('change', (e) => {
+                const [key, dir] = String(e.target.value).split(':');
+                this.gpuCatalogSort = { key, dir: dir === 'desc' ? 'desc' : 'asc' };
+                this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
+            });
+        }
 
         if (gpuVendorFilter) {
             gpuVendorFilter.addEventListener('change', (e) => {
@@ -462,6 +482,22 @@ class GPUCalculator {
         const llmTypeFilter = this.el('llm-type-filter');
         const llmLicenseFilter = this.el('llm-license-filter');
         const llmClearFilters = this.el('llm-clear-filters');
+        const llmSearch = this.el('llm-search');
+        const llmSort = this.el('llm-sort');
+
+        if (llmSearch) {
+            llmSearch.addEventListener('input', (e) => {
+                this.llmSearchQuery = e.target.value.trim();
+                this.applyLLMFilters();
+            });
+        }
+        if (llmSort) {
+            llmSort.addEventListener('change', (e) => {
+                const [key, dir] = String(e.target.value).split(':');
+                this.llmCatalogSort = { key, dir: dir === 'desc' ? 'desc' : 'asc' };
+                this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
+            });
+        }
 
         if (llmSizeFilter) {
             llmSizeFilter.addEventListener('change', (e) => {
@@ -1302,8 +1338,6 @@ ${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
     }
 
     gpuCatalogCardHtml(gpu) {
-        const perfPerW = (gpu.fp16_tflops && gpu.tdp_w && !isNaN(parseFloat(gpu.tdp_w))) ? (gpu.fp16_tflops / parseFloat(gpu.tdp_w)).toFixed(2) : null;
-        const perfPerDollar = (gpu.fp16_tflops && gpu.price_usd) ? (gpu.fp16_tflops / gpu.price_usd).toFixed(2) : null;
         const logoSrc = this.getGpuLogoPath(gpu);
         return `
                     <div class="flex items-center justify-between mb-2">
@@ -1313,41 +1347,15 @@ ${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
                         </div>
                         <div class="text-xs text-soft-gray/70">${gpu.vendor || ''}${gpu.architecture ? ' • ' + gpu.architecture : ''}</div>
                     </div>
-                    <div class="text-xs text-soft-gray/60 mb-2">Process: ${gpu.process_node || '-'}</div>
                     ${this.statGridRow([
                         this.statTile('Memory', `${gpu.memory_gb ?? '-'} GB`),
                         this.statTile('Bandwidth', `${gpu.memory_bandwidth_tbps ?? gpu.bandwidth_tbps ?? '-'} TB/s`),
-                        this.statTile('Memory Type', gpu.memory_type || '-')
+                        this.statTile('FP16 TFLOPs', gpu.fp16_tflops ?? '-')
                     ], 'text-sm')}
                     ${this.statGridRow([
-                        this.statTile('FP32 TFLOPs', gpu.fp32_tflops ?? '-'),
-                        this.statTile('INT8 TOPS', gpu.int8_tops ?? '-'),
-                        this.statTile('TDP (W)', gpu.tdp_w ?? '-')
-                    ], 'text-sm mt-2')}
-                    ${this.statGridRow([
-                        this.statChip('FP16 TFLOPs', gpu.fp16_tflops ?? '-'),
-                        this.statChip('NVLink', gpu.nvlink_bandwidth_gbs ?? '-'),
-                        this.statChip('PCIe', gpu.pcie_generation || '-')
+                        this.statChip('Price', gpu.price_usd != null ? `$${gpu.price_usd}` : '-'),
+                        this.statChip('Release', gpu.release_year ?? '-')
                     ], 'text-xs mt-2 text-soft-gray/70')}
-                    ${this.statGridRow([
-                        this.statChip('Release', gpu.release_year ?? '-'),
-                        this.statChip('MIG', gpu.mig_support || '-'),
-                        this.statChip('Transformer Engine', gpu.transformer_engine || '-')
-                    ], 'text-xs mt-2 text-soft-gray/70')}
-                    ${this.statGridRow([
-                        this.statChip('CUDA Cores', gpu.cuda_cores ?? '-'),
-                        this.statChip('Tensor Cores', gpu.tensor_cores || '-'),
-                        this.statChip('RT Cores', gpu.rt_cores || '-')
-                    ], 'text-xs mt-2 text-soft-gray/70')}
-                    ${this.statGridRow([
-                        this.statChip('Price', gpu.price_usd ?? '-'),
-                        this.statChip('Perf/W', perfPerW ?? '-'),
-                        this.statChip('Perf/$', perfPerDollar ?? '-')
-                    ], 'text-xs mt-2 text-soft-gray/70')}
-                    ${this.statGridRow([
-                        this.statChip('Price RMB', gpu.price_rmb ?? '-')
-                    ], 'text-xs mt-2 text-soft-gray/70')}
-                    ${gpu.notes ? `<div class="mt-2 text-xs text-soft-gray/60">${gpu.notes}</div>` : ''}
                 `;
     }
 
@@ -1405,37 +1413,15 @@ ${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
                         </div>
                         <div class="text-xs text-soft-gray/70">${m.organization || ''}</div>
                     </div>
-                    <div class="text-xs text-soft-gray/60 mb-2">Release: ${m.release_date || '-'}</div>
                     ${this.statGridRow([
                         this.statTile('Params', `${this.llmParamsB(m)} B`),
                         this.statTile('Context', m.context_length ?? '-'),
-                        this.statTile('Arch', m.architecture_type || m.architecture || '-')
+                        this.statTile('License', m.license || '-')
                     ], 'text-sm')}
                     ${this.statGridRow([
-                        this.statTile('Precision', this.formatList(m.precision_supported)),
-                        this.statTile('Quantization', this.formatList(m.quantization_types)),
-                        this.statTile('MoE', this.llmMoeSummary(m))
-                    ], 'text-sm mt-2')}
-                    ${this.statGridRow([
-                        this.statTile('Layers', m.num_layers ?? '-'),
-                        this.statTile('Hidden', m.hidden_size ?? '-'),
-                        this.statTile('Heads', m.num_attention_heads ?? '-')
-                    ], 'text-sm mt-2')}
-                    ${this.statGridRow([
-                        this.statChip('Serving', this.formatList(m.serving_frameworks)),
-                        this.statChip('Rec. GPU', this.formatList(m.recommended_gpu)),
-                        this.statChip('License', m.license || '-')
+                        this.statChip('MoE', this.llmMoeSummary(m)),
+                        this.statChip('Rec. GPU', this.formatList(m.recommended_gpu))
                     ], 'text-xs mt-2 text-soft-gray/70')}
-                    ${this.statGridRow([
-                        this.statChip('Throughput', m.throughput_tokens_per_sec_per_gpu ?? '-'),
-                        this.statChip('Memory', m.memory_footprint_gb ?? '-'),
-                        this.statChip('Seq Tested', m.sequence_length_tested ?? '-')
-                    ], 'text-xs mt-2 text-soft-gray/70')}
-                    ${this.statGridRow([
-                        this.statChip('Vocab', m.vocab_size ?? '-'),
-                        this.statChip('Sources', this.formatList(m.source_links), 'col-span-2')
-                    ], 'text-xs mt-2 text-soft-gray/70')}
-                    ${m.notes ? `<div class="mt-2 text-xs text-soft-gray/60">${m.notes}</div>` : ''}
                 `;
     }
 
@@ -1463,10 +1449,11 @@ ${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
                 this.renderGPUCatalog(containerId, viewMode);
             };
         } else {
-            // Render cards grid of GPUs: one card per row
-            container.className = 'grid grid-cols-1 gap-3';
+            // Render compact cards grid of GPUs (sorted like the table view)
+            container.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3';
             container.onclick = null; // disable table-specific handlers
-            this.filteredGpuData.forEach(gpu => {
+            const sorted = this.sortGPUList(this.filteredGpuData, this.gpuCatalogSort.key, this.gpuCatalogSort.dir);
+            sorted.forEach(gpu => {
                 const card = document.createElement('div');
                 card.className = 'p-4 bg-white/5 rounded-lg hover-lift border border-soft-gray/10';
                 card.innerHTML = this.gpuCatalogCardHtml(gpu);
@@ -1503,10 +1490,11 @@ ${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
                 this.renderLLMCatalog(containerId, viewMode);
             };
         } else {
-            // Render cards grid of LLMs: one card per row
-            container.className = 'grid grid-cols-1 gap-3';
+            // Render compact cards grid of LLMs (sorted like the table view)
+            container.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3';
             container.onclick = null; // disable table-specific handlers
-            list.forEach(m => {
+            const sorted = this.sortLLMList(list, this.llmCatalogSort.key, this.llmCatalogSort.dir);
+            sorted.forEach(m => {
                 const card = document.createElement('div');
                 card.className = 'p-4 bg-white/5 rounded-lg hover-lift border border-soft-gray/10';
                 card.innerHTML = this.llmCatalogCardHtml(m);
@@ -1620,6 +1608,15 @@ ${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
             });
         }
 
+        // Apply search query (name / vendor / architecture, case-insensitive)
+        if (this.gpuSearchQuery) {
+            const q = this.gpuSearchQuery.toLowerCase();
+            filtered = filtered.filter(gpu =>
+                [gpu.name, gpu.vendor, gpu.architecture]
+                    .some(v => String(v || '').toLowerCase().includes(q))
+            );
+        }
+
         this.filteredGpuData = filtered;
         this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
     }
@@ -1658,21 +1655,36 @@ ${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
             filtered = filtered.filter(llm => llm.license === this.llmFilters.license);
         }
 
+        // Apply search query (model name / organization / architecture, case-insensitive)
+        if (this.llmSearchQuery) {
+            const q = this.llmSearchQuery.toLowerCase();
+            filtered = filtered.filter(llm =>
+                [llm.model_name, llm.organization, llm.architecture_type || llm.architecture]
+                    .some(v => String(v || '').toLowerCase().includes(q))
+            );
+        }
+
         this.filteredLlmData = filtered;
         this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
     }
 
     clearGPUFilters() {
         this.gpuFilters = { vendor: '', architecture: '', memory: '' };
+        this.gpuSearchQuery = '';
+        this.gpuCatalogSort = { key: 'name', dir: 'asc' };
 
         // Reset filter UI
         const vendorSelect = this.el('gpu-vendor-filter');
         const archSelect = this.el('gpu-architecture-filter');
         const memorySelect = this.el('gpu-memory-filter');
+        const searchInput = this.el('gpu-search');
+        const sortSelect = this.el('gpu-sort');
 
         if (vendorSelect) vendorSelect.value = '';
         if (archSelect) archSelect.value = '';
         if (memorySelect) memorySelect.value = '';
+        if (searchInput) searchInput.value = '';
+        if (sortSelect) sortSelect.value = 'name:asc';
 
         this.filteredGpuData = [...this.gpuCatalogData];
         this.renderGPUCatalog('gpu-catalog', this.gpuCatalogViewMode);
@@ -1680,15 +1692,21 @@ ${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
 
     clearLLMFilters() {
         this.llmFilters = { size: '', type: '', license: '' };
+        this.llmSearchQuery = '';
+        this.llmCatalogSort = { key: 'model_name', dir: 'asc' };
 
         // Reset filter UI
         const sizeSelect = this.el('llm-size-filter');
         const typeSelect = this.el('llm-type-filter');
         const licenseSelect = this.el('llm-license-filter');
+        const searchInput = this.el('llm-search');
+        const sortSelect = this.el('llm-sort');
 
         if (sizeSelect) sizeSelect.value = '';
         if (typeSelect) typeSelect.value = '';
         if (licenseSelect) licenseSelect.value = '';
+        if (searchInput) searchInput.value = '';
+        if (sortSelect) sortSelect.value = 'model_name:asc';
 
         this.filteredLlmData = [...this.llms];
         this.renderLLMCatalog('llm-catalog', this.llmCatalogViewMode);
