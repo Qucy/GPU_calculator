@@ -1,5 +1,7 @@
 # GPU Calculator - Project Outline
 
+> **Note**: Original design notes from project inception — the structure and feature set have evolved (two pages now: `index.html` and `calculator.html`). For the current state, see `README.md`.
+
 ## File Structure
 ```
 /mnt/okcomputer/output/

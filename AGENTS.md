@@ -15,7 +15,7 @@ Two coexisting front-ends share the `data/` catalogs:
 - `data/GPUs.json` — GPU catalog (`{"gpus": [...]}`; fields: `name`, `vendor`, `memory_gb`, `memory_bandwidth_tbps`, `architecture`, prices, etc.).
 - `data/LLMs.json` — LLM catalog (array; fields: `model_name`, `parameter_count_billion`, `context_length`, `moe`, `recommended_gpu`, etc.).
 - `resources/` — static images (logos, hero art).
-- `design.md`, `outline.md`, `interaction.md`, `calculation_engine.md` — design notes.
+- `calculation_engine.md` — detailed documentation of the implemented memory/performance math (keep in sync when changing calculation logic). `design.md`, `outline.md`, `interaction.md` — original design notes (largely aspirational).
 - `.github/workflows/pages.yml` — deploys repo root to GitHub Pages on push to `main`.
 
 ## Commands

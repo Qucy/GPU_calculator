@@ -1,31 +1,38 @@
 # GPU Calculator Pro
 
-A static, client-side GPU requirements calculator for AI/ML workloads. Configure model parameters and instantly see VRAM needs, performance estimates, and recommended GPUs. No backend required.
+A static, client-side GPU requirements calculator for AI/ML workloads (LLM inference). Configure model parameters and instantly see VRAM needs, performance estimates, and recommended GPUs. No backend, no build step — libraries load from public CDNs.
+
+## Pages
+- **`index.html` — GPU Calculator Pro**: model/GPU configuration with a live memory breakdown chart (weights, KV cache, activation, overhead), performance estimates, and recommended GPUs (Cards ↔ Table).
+- **`calculator.html` — SelfHostLLM**: VRAM fit and concurrency calculator with MoE offloading support, interconnect-aware multi-GPU performance estimates, a performance scenario table (context × GPU count sweep with CSV export), and shareable URL state.
 
 ## Features
-- Model selection including Qwen 3 series and DeepSeek variants
-- Quantization options (`fp32`, `fp16`, `bf16`, `fp8`, `int8`)
-- Context length, concurrency, and batch controls
-- Memory breakdown chart (weights, KV cache, activation, overhead)
-- Performance estimates (tokens/sec, bandwidth utilization, per-request speed)
-- Recommended GPUs with a view toggle (Cards ↔ Table)
+- 36 open-source models (Qwen 3, DeepSeek, GLM, Kimi, Mistral, Llama, …) and 34 GPUs (RTX 40 series through H200/B200, MI300X, …) in `data/*.json`
+- Extended quantization: FP32, FP16/BF16, INT8/FP8, INT4/FP4/MXFP4, INT2, plus GGUF Q8_0–Q2_K
+- Context length, concurrency, and batch controls; MoE active/total parameter handling
+- Memory breakdown chart and bandwidth-based tokens/sec estimates, benchmark-validated against published TinyChat/AWQ, TensorRT-LLM, GigaGPU, and OCI measurements
+- Multi-GPU scaling with NVLink/PCIe interconnect penalty
+- **GPU Explorer** and **Open Source Models** catalogs: compact grouped cards (by vendor/organization), sortable table view, live search, and sort dropdowns
 
 ## Project Structure
-- `index.html` — UI markup and Tailwind-based layout
-- `main.js` — Calculation engine and interactive behaviors
-- `resources/` — Static assets (images)
-- `design.md`, `outline.md`, `interaction.md`, `calculation_engine.md` — Notes and docs
+- `index.html` + `main.js` — GPU Calculator Pro page (`GPUCalculator` class: state, catalogs, charts, recommendations)
+- `calculator.html` + `selfhost-llm.js` + `selfhost-llm.css` — SelfHostLLM page (plain functions, URL query-param state)
+- `data/GPUs.json`, `data/LLMs.json` — hardware and model catalogs (edit these to add entries)
+- `tests/run.js` + `scripts/test.sh` — zero-dependency unit test harness
+- `hooks/pre-commit` — runs the tests on every commit
+- `resources/` — static assets (images)
+- `calculation_engine.md` — detailed documentation of the memory/performance math; `design.md`, `outline.md`, `interaction.md` — original design notes
 
 ## Getting Started
 Requirements: modern desktop or mobile browser. No build step needed.
 
-Local preview (Python):
+Local preview (Python) — the repo root must be served; the JSON catalogs are fetched at runtime so `file://` won't work:
 
 ```bash
 python3 -m http.server 8000
 ```
 
-Open `http://localhost:8000/` in your browser.
+Open `http://localhost:8000/` (GPU Calculator Pro) or `http://localhost:8000/calculator.html` (SelfHostLLM) in your browser.
 
 ## Testing
 
@@ -40,8 +47,8 @@ Tests also run automatically on every commit (pre-commit hook in `hooks/`, enabl
 The suite includes validation against published batch-1 decode benchmarks (TinyChat/AWQ, NVIDIA TensorRT-LLM, GigaGPU, Oracle OCI): each case asserts the calculator's estimate lands within a documented tolerance of the measured tokens/sec.
 
 ## Usage Tips
-- Use the left panel to configure model, quantization, context, concurrency, and batch size.
-- The “Recommended GPUs” panel supports a sliding toggle to switch between a card view and a table view.
+- **SelfHostLLM page** (`calculator.html`): pick a model preset (or enter parameters/memory directly), choose quantization, context, GPU and count; results, the scenario table, and the shareable URL update live.
+- **GPU Calculator Pro page** (`index.html`): the catalog sections support search, sort dropdowns, vendor/architecture/memory filters, and a Cards ↔ Table toggle; card view groups by vendor/organization.
 - The parameter count and all estimates update live as you change inputs.
 
 ## Deployment (GitHub Pages)
@@ -59,9 +66,11 @@ Notes:
 - Commit the `resources/` folder so images appear.
 
 ## Customization
-- Add or adjust model specs in `main.js` under the `models` map.
-- Tweak GPU database entries in `main.js` (`this.gpus`) to reflect hardware you care about.
-- Adjust layout and styling directly in `index.html` (Tailwind classes are configured inline).
+- **Add or adjust models**: edit `data/LLMs.json` (preferred). Fields include `model_name`, `parameter_count_billion`, `num_layers`, `hidden_size`, `context_length`, `moe`, `precision_supported`, `quantization_types`, `recommended_gpu`. Providing `num_layers`/`hidden_size` makes KV-cache estimates exact instead of heuristic.
+- **Add or adjust GPUs**: edit `data/GPUs.json` — see the "GPU Dropdown Data Merge" section below for required fields.
+- **Legacy hardcoded data**: `main.js` still contains `this.models`/`this.gpus` maps used as fallbacks by the index page; prefer the JSON catalogs for anything new.
+- **Calculation logic**: see `calculation_engine.md` for the documented formulas and constants before tweaking them.
+- Adjust layout and styling directly in `index.html` / `calculator.html` (Tailwind classes are configured inline).
 
 ## GPU Dropdown Data Merge
 

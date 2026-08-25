@@ -1,5 +1,7 @@
 # GPU Calculator - Design Style Guide
 
+> **Note**: Original design notes from project inception — aspirational, not all implemented (e.g., p5.js/Pixi.js/Matter.js effects, light-mode toggle). For the current implementation, see `README.md`; for the math, see `calculation_engine.md`.
+
 ## Design Philosophy
 
 ### Visual Language

@@ -1,5 +1,7 @@
 # GPU Calculator Interaction Design
 
+> **Note**: Original design notes from project inception — some interactions described here (comparison mode, export presets) are not implemented. For current behavior, see `README.md` and `calculation_engine.md`.
+
 ## Core Interaction Components
 
 ### 1. Model Selection Dropdown
