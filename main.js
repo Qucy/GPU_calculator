@@ -1229,6 +1229,59 @@ class GPUCalculator {
         return [...(Array.isArray(list) ? list : [])].sort((a, b) => this.sortValues(getVal(a), getVal(b), dir));
     }
 
+    // ===== Section: Catalog grouping =====
+    // Canonicalize LLM organization names that appear in multiple variants in the catalog.
+    normalizeLlmOrganization(org) {
+        const raw = String(org || '').trim();
+        if (!raw) return 'Other';
+        const map = {
+            'deepseek ai': 'DeepSeek',
+            'zhipu ai / thudm': 'Zhipu AI',
+            'z.ai (zhipu ai)': 'Zhipu AI'
+        };
+        return map[raw.toLowerCase()] || raw;
+    }
+
+    // Group catalog items into { name, items } buckets: largest group first
+    // (alphabetical tiebreak), items within a group sorted by sortFn.
+    groupByKey(list, keyFn, sortKey, sortDir, sortFn) {
+        const buckets = new Map();
+        (Array.isArray(list) ? list : []).forEach(item => {
+            const key = String(keyFn(item) || '').trim() || 'Other';
+            if (!buckets.has(key)) buckets.set(key, []);
+            buckets.get(key).push(item);
+        });
+        return [...buckets.entries()]
+            .map(([name, items]) => ({ name, items: sortFn(items, sortKey, sortDir) }))
+            .sort((a, b) => (b.items.length - a.items.length) || a.name.localeCompare(b.name));
+    }
+
+    // Shared card-view renderer: one section per group (header + inner card grid).
+    renderGroupedCards(container, groups, cardHtmlFn, logoFn) {
+        container.className = 'flex flex-col gap-6';
+        container.onclick = null; // disable table-specific handlers
+        groups.forEach(group => {
+            const section = document.createElement('div');
+            const logoSrc = logoFn(group.name);
+            section.innerHTML = `
+                <h5 class="flex items-center gap-2 text-lg font-semibold border-b border-white/10 pb-2 mb-3">
+                    <img src="${logoSrc}" alt="${group.name}" class="w-5 h-5 rounded-sm">
+                    ${group.name}
+                    <span class="text-xs font-normal text-soft-gray/60">${group.items.length}</span>
+                </h5>`;
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3';
+            group.items.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'p-4 bg-white/5 rounded-lg hover-lift border border-soft-gray/10';
+                card.innerHTML = cardHtmlFn(item);
+                grid.appendChild(card);
+            });
+            section.appendChild(grid);
+            container.appendChild(section);
+        });
+    }
+
     // ===== Section: Logo helpers =====
     getVendorLogoPath(vendor) {
         const v = String(vendor || '').toLowerCase();
@@ -1449,17 +1502,17 @@ ${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
                 this.renderGPUCatalog(containerId, viewMode);
             };
         } else {
-            // Render compact cards grid of GPUs (sorted like the table view)
-            container.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3';
-            container.onclick = null; // disable table-specific handlers
-            const sorted = this.sortGPUList(this.filteredGpuData, this.gpuCatalogSort.key, this.gpuCatalogSort.dir);
-            sorted.forEach(gpu => {
-                const card = document.createElement('div');
-                card.className = 'p-4 bg-white/5 rounded-lg hover-lift border border-soft-gray/10';
-                card.innerHTML = this.gpuCatalogCardHtml(gpu);
-                // GPU card - no click handler needed
-                container.appendChild(card);
-            });
+            // Render compact cards grouped by vendor (largest group first, sorted within group)
+            const groups = this.groupByKey(
+                this.filteredGpuData,
+                gpu => gpu.vendor,
+                this.gpuCatalogSort.key,
+                this.gpuCatalogSort.dir,
+                (items, key, dir) => this.sortGPUList(items, key, dir)
+            );
+            this.renderGroupedCards(container, groups,
+                gpu => this.gpuCatalogCardHtml(gpu),
+                vendor => this.getGpuLogoPath({ vendor }));
         }
         // Adjust wrapper span so cards occupy full page width when in cards view
         this.setCatalogWrapperSpan(containerId, viewMode === 'cards');
@@ -1490,17 +1543,17 @@ ${columns.map(col => this.sortableHeaderCell(col, sortState)).join('\n')}
                 this.renderLLMCatalog(containerId, viewMode);
             };
         } else {
-            // Render compact cards grid of LLMs (sorted like the table view)
-            container.className = 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3';
-            container.onclick = null; // disable table-specific handlers
-            const sorted = this.sortLLMList(list, this.llmCatalogSort.key, this.llmCatalogSort.dir);
-            sorted.forEach(m => {
-                const card = document.createElement('div');
-                card.className = 'p-4 bg-white/5 rounded-lg hover-lift border border-soft-gray/10';
-                card.innerHTML = this.llmCatalogCardHtml(m);
-                // LLM card - no click handler needed
-                container.appendChild(card);
-            });
+            // Render compact cards grouped by organization (largest group first, sorted within group)
+            const groups = this.groupByKey(
+                list,
+                m => this.normalizeLlmOrganization(m.organization),
+                this.llmCatalogSort.key,
+                this.llmCatalogSort.dir,
+                (items, key, dir) => this.sortLLMList(items, key, dir)
+            );
+            this.renderGroupedCards(container, groups,
+                m => this.llmCatalogCardHtml(m),
+                org => this.getLLMLogoPath({ organization: org }));
         }
         // Adjust wrapper span so cards occupy full page width when in cards view
         this.setCatalogWrapperSpan(containerId, viewMode === 'cards');

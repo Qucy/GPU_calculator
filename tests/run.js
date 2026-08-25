@@ -540,6 +540,63 @@ test('card view sort: GPUs by memory desc, LLMs by params desc', () => {
     assertEqual(llms.map(m => m.model_name).join(','), 'y,x');
 });
 
+// --- normalizeLlmOrganization ---
+
+test('normalizeLlmOrganization: variant mapping, passthrough, null -> Other', () => {
+    assertEqual(app.normalizeLlmOrganization('DeepSeek AI'), 'DeepSeek');
+    assertEqual(app.normalizeLlmOrganization('DeepSeek'), 'DeepSeek');
+    assertEqual(app.normalizeLlmOrganization('Zhipu AI / THUDM'), 'Zhipu AI');
+    assertEqual(app.normalizeLlmOrganization('Z.ai (Zhipu AI)'), 'Zhipu AI');
+    assertEqual(app.normalizeLlmOrganization('Mistral AI'), 'Mistral AI', 'passthrough');
+    assertEqual(app.normalizeLlmOrganization(null), 'Other');
+    assertEqual(app.normalizeLlmOrganization('  '), 'Other');
+});
+
+// --- groupByKey ---
+
+test('groupByKey: largest first, alphabetical tiebreak, within-group sort, empty key -> Other', () => {
+    const list = [
+        { name: 'b1', vendor: 'Beta', memory_gb: 24 },
+        { name: 'a1', vendor: 'Alpha', memory_gb: 80 },
+        { name: 'a2', vendor: 'Alpha', memory_gb: 48 },
+        { name: 'a3', vendor: 'Alpha', memory_gb: 16 },
+        { name: 'x1', vendor: '', memory_gb: 8 }
+    ];
+    const groups = app.groupByKey(list, g => g.vendor, 'memory_gb', 'desc',
+        (items, key, dir) => app.sortGPUList(items, key, dir));
+
+    assertEqual(groups.map(g => g.name).join(','), 'Alpha,Beta,Other', 'largest group first, Other last');
+    assertEqual(groups[0].items.map(g => g.name).join(','), 'a1,a2,a3', 'within-group sort applied');
+
+    // Alphabetical tiebreak among equal-sized groups
+    const tie = app.groupByKey(
+        [{ v: 'Zeta' }, { v: 'Beta' }], g => g.v, 'name', 'asc',
+        (items) => items
+    );
+    assertEqual(tie.map(g => g.name).join(','), 'Beta,Zeta', 'equal sizes -> alphabetical');
+
+    assertEqual(app.groupByKey(null, g => g.v, 'name', 'asc', (i) => i).length, 0, 'null list -> no groups');
+});
+
+// --- grouping composes with search filtering ---
+
+test('grouping composes with applyGPUFilters search output', () => {
+    app.gpuCatalogData = [
+        { name: 'H100', vendor: 'NVIDIA', architecture: 'Hopper', memory_gb: 80 },
+        { name: 'H200', vendor: 'NVIDIA', architecture: 'Hopper', memory_gb: 141 },
+        { name: 'MI300X', vendor: 'AMD', architecture: 'CDNA 3', memory_gb: 192 }
+    ];
+    app.gpuFilters = { vendor: '', architecture: '', memory: '' };
+    app.gpuSearchQuery = 'h2';
+    app.applyGPUFilters();
+    const groups = app.groupByKey(app.filteredGpuData, g => g.vendor, 'name', 'asc',
+        (items, key, dir) => app.sortGPUList(items, key, dir));
+    assertEqual(groups.length, 1, 'single matching group');
+    assertEqual(groups[0].name, 'NVIDIA');
+    assertEqual(groups[0].items.map(g => g.name).join(','), 'H200');
+    app.gpuSearchQuery = '';
+});
+
 // --- chooseDefaultPrecisionForLLM ---
 
 test('chooseDefaultPrecisionForLLM: prefers fp16 > bf16 > fp32 > int8 > fp8', () => {
